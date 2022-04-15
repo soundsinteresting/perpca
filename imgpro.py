@@ -64,6 +64,7 @@ def video2frame(video_src_path, frame_save_path, frame_width, frame_height, inte
             if frame_index>end:
                 break
             #cap.release()  # 这行要缩一下、原博客会报错
+        break
 
 
 def process_cat_data():
@@ -78,14 +79,14 @@ def process_cat_data():
     video2frame(videos_src_path, frames_save_path, width, height, time_interval, start, end)
 
 def process_cat_data_xb():
-    videos_src_path = "video\catscat"
+    videos_src_path = r"video"
     # video_formats = [".MP4", ".MOV"]          我的数据集都是.mp4所以不需要进行分类判断
-    frames_save_path = "video\catscat"
+    frames_save_path = r"frames"
     width = 720
     height = 480
     start = 0
-    end = 100000
-    time_interval = 10
+    end = 10000
+    time_interval = 20
     video2frame(videos_src_path, frames_save_path, width, height, time_interval, start, end)
 
 def save_image(image,addr,num):
@@ -93,17 +94,19 @@ def save_image(image,addr,num):
 
 def gen_cat_data_simple():
     #names = ['c1.jpg','c2.jpg','c3.jpg','c4.jpg']#,'c5.jpg',]
-    names = ["cat_"+str(i)+".jpg" for i in range(20)]
+    names = ["catxb_"+str(i)+".jpg" for i in range(76)]
     res = []
     for name in names:
-        img = Image.open('video/cats/'+name)
+        img = Image.open('frames/'+name)
         img = np.array(img)
         cat = np.mean(img, axis=2)
-        cat = cat[0:400,200:700]
-        res.append(cat)
+        #cat = cat[0:400,200:700]
+        ct = cat.T
+        res.append(ct)
 
         print(cat.shape)
     #print(len(res))
+    print('images loaded')
     return np.stack(res)
 
 

@@ -149,14 +149,14 @@ def img_test():
         'method': 'power',
         'd': 100,
         'num_client': 4,
-        'nlc': 30,
-        'ngc': 30,
+        'nlc': 100,
+        'ngc': 40,
         'num_dp_per_client': 100,
         'global_epochs': 100,
         'local_epochs': 1,
         'n_power': 1,
         'lr': 0.01,
-        'eta': 0.001,
+        'eta': 0.01,
         'rho': 100,
         'lambda': 0,
         'decay': 1 - 0.1,
@@ -173,58 +173,103 @@ def img_test():
     U_glb = initial_u(Y, d=args['d'], ngc=args['nlc'] + args['ngc'])
     print(U_glb.shape)
     reconstruct0 = (U_glb @ U_glb.T @ (Y[0].T)).T
-    plt.imshow(reconstruct0)
-    plt.axis('off')
-    plt.show()
+    #plt.imshow(reconstruct0)
+    #plt.axis('off')
+    #plt.show()
     # print(U_glb)
     # U = initial_u(Y, d=args['d'], ngc=args['ngc'])
     # print(U)
-    '''
-    for figidx in range(len(Y)):
-        # print(loss(Y_test, U, V))
-        # figidx = 3
-        reconstruct0 = Y[figidx]
-        plt.imshow(reconstruct0, cmap='gray')
-        plt.axis('off')
-        plt.savefig('video/catscat/' + 'combined_' + str(figidx) + '.png')
-    '''
+    
     Y_test = copy.deepcopy(Y) # generate_data(g_cs=gcs, l_cs=lcs, d=args['d'], num_dp=args['num_dp_per_client'])
     print('global model test loss:')
     print(loss(Y_test, U_glb))
-    for method in ['power']:
-        print(method)
-        args['method'] = method
-        '''
-        U, V, lv = personalized_pca_dgd(Y, args=args)
-        lv = np.array(lv)
-        loglv = np.log(1e-20+lv-lv[-1])/np.log(10)
-        plt.plot(range(len(lv)), loglv)
-        plt.savefig('training_loss.png')
-        '''
-        args['rho'] = 1e7
-        args['local_epochs']=10
+    
         #args['']
-        U, V = personalized_pca_admm(Y, args=args)
-        print('personalized model test loss:')
+    U, V, lv = personalized_pca_dgd(Y, args=args)
+    #print('personalized model test loss:')
         # print(Y_test.shape)
         # print(U_p.shape)
         # print(V[0].shape)
 
-        for figidx in range(len(Y)):
-            #print(loss(Y_test, U, V))
-            #figidx = 3
-            print('saving image {}'.format(figidx))
-            Ui, Vi = consensus(None,V[figidx], U[figidx], args)
-            reconstruct0 = (Vi@Vi.T@Y[figidx].T).T
-            plt.imshow(reconstruct0,cmap='gray')
-            plt.axis('off')
-            plt.savefig('video/catscat/'+'cat_'+str(figidx)+'.png')
+    for figidx in range(len(Y)):
+            
+        print('saving image {}'.format(figidx))
+        Ui, Vi = consensus(None,V[figidx], U[figidx], args)
+        reconstruct0 = (Vi@Vi.T@Y[figidx].T)#.T
+        plt.imshow(reconstruct0,cmap='gray')
+        plt.axis('off')
+        plt.savefig('processedframes/'+'cat_'+str(figidx)+'.png', bbox_inches='tight')
 
-            reconstruct0 = (Ui@Ui.T @ Y[figidx].T).T
-            plt.imshow(reconstruct0,cmap='gray')
-            plt.axis('off')
-            #plt.show()
-            plt.savefig('video/catscat/'+'bg_'+str(figidx)+'.png')
+        reconstruct1 = (Ui@Ui.T @ Y[figidx].T)#.T
+        plt.imshow(reconstruct1,cmap='gray')
+        plt.axis('off')
+        #plt.show()
+        plt.savefig('processedframes/'+'bg_'+str(figidx)+'.png', bbox_inches='tight')
+
+
+def femnist_test():
+    args = {
+        'method': 'power',
+        'd': 100,
+        'num_client': 4,
+        'nlc': 100,
+        'ngc': 40,
+        'num_dp_per_client': 100,
+        'global_epochs': 50,
+        'local_epochs': 50,
+        'n_power': 1,
+        'lr': 0.01,
+        'eta': 0.001,
+        'rho': 100,
+        'lambda': 0,
+        'decay': 1 - 0.1,
+    }
+
+    # num_client=20
+    np.random.seed(2021)
+    from mnist import femnist_images
+    Y = femnist_images()
+    # print(Y)
+    #for y in Y:
+    #    print(y.shape)
+    args['num_client'] = len(Y)
+    args['d'] = len(Y[0][0])
+    args['num_dp_per_client'] = len(Y[0])
+    U_glb = initial_u(Y, d=args['d'], ngc=args['nlc'] + args['ngc'])
+    print(U_glb.shape)
+    reconstruct0 = (U_glb @ U_glb.T @ (Y[0].T)).T
+    #plt.imshow(reconstruct0)
+    #plt.axis('off')
+    #plt.show()
+    # print(U_glb)
+    # U = initial_u(Y, d=args['d'], ngc=args['ngc'])
+    # print(U)
+    
+    Y_test = copy.deepcopy(Y) # generate_data(g_cs=gcs, l_cs=lcs, d=args['d'], num_dp=args['num_dp_per_client'])
+    print('global model test loss:')
+    print(loss(Y_test, U_glb))
+    
+        #args['']
+    U, V, lv = personalized_pca_dgd(Y, args=args)
+    #print('personalized model test loss:')
+        # print(Y_test.shape)
+        # print(U_p.shape)
+        # print(V[0].shape)
+
+    for figidx in range(len(Y)):
+            
+        print('saving image {}'.format(figidx))
+        Ui, Vi = consensus(None,V[figidx], U[figidx], args)
+        reconstruct0 = (Vi@Vi.T@Y[figidx].T)#.T
+        plt.imshow(reconstruct0,cmap='gray')
+        plt.axis('off')
+        plt.savefig('processedframes/'+'cat_'+str(figidx)+'.png', bbox_inches='tight')
+
+        reconstruct1 = (Ui@Ui.T @ Y[figidx].T)#.T
+        plt.imshow(reconstruct1,cmap='gray')
+        plt.axis('off')
+        #plt.show()
+        plt.savefig('processedframes/'+'bg_'+str(figidx)+'.png', bbox_inches='tight')
 
 def intro_example():
     args = {
@@ -309,43 +354,6 @@ def intro_example():
     plt.legend(prop={'size': 14})
     plt.savefig('intro_example_ppca_{}.png'.format(not UNIFORM),bbox='tight')
 
-    '''
-    
-
-    U_glb = initial_u(Y, d=args['d'], ngc=args['nlc']+args['ngc'])
-    print('statistical optimal training loss')
-    print(loss(Y, gcs.T, [lc.T for lc in lcs]))
-    #print(U_glb)
-    #U = initial_u(Y, d=args['d'], ngc=args['ngc'])
-    #print(U)
-    Y_test = generate_data(g_cs=gcs, l_cs=lcs, d=args['d'], num_dp=args['num_dp_per_client'])
-    print('global model test loss:')
-    print(loss(Y_test, U_glb))
-    for method in ['power']:
-        print(method)
-        args['method']=method
-        U, V, lv = personalized_pca_dgd(Y, args=args)
-        #U, V = personalized_pca_admm(Y, args=args)
-        print('personalized model test loss:')
-        #print(Y_test.shape)
-        #print(U_p.shape)
-        #print(V[0].shape)
-        print(loss(Y_test, U, V))
-        #print(U[0])
-        #print(V[0][:,0])
-        #print(V[0][:,1])
-        #print(V[0][:,2])
-        #print(U[1])
-
-    #v = pca_by_gd(Y[0],5,0.01,100)
-    #print(v)
-
-    #evs, newU = LA.eig(Y[0].T @ Y[0])
-    #print(newU[:,0:5])
-    #projected = pca(np.transpose(Y[0]), 5)
-    #print(projected)
-    '''
-
 
 def toy_example1():
     import json
@@ -422,4 +430,6 @@ def toy_example1():
 
 
 if __name__ == "__main__":
-    borrowpowertest()
+    #borrowpowertest()
+    #img_test()
+    femnist_test()

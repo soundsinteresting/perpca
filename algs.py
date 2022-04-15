@@ -249,9 +249,9 @@ def personalized_pca_dgd(Y, args):
     num_client = args['num_client']
     rho = args['rho']
 
-    # U_init = initial_u(Y, d, ngc)
-    U_init = np.random.randn(d, ngc)
-    U_init = schmit(U_init)
+    U_init = initial_u(Y, d, ngc)
+    #U_init = np.random.randn(d, ngc)
+    #U_init = schmit(U_init)
     # print(U_init)
     V = [np.random.multivariate_normal(np.zeros(d), np.eye(d), nlc).T for i in range(num_client)]
     V = [schmit(Vi - U_init @ U_init.T @ Vi) for Vi in V]

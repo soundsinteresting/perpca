@@ -185,7 +185,8 @@ def loss(Y, U, V=0):
         if type(V) == int:
             v = U
         elif type(U) == list:
-            v = np.concatenate((U[i], V[i]), axis=1)
+            Uk,Vk = adjust_vk(U[i], V[i])
+            v = np.concatenate((Uk, Vk), axis=1)
         else:
             v = np.concatenate((U, V[i]), axis=1)
         m = len(Y[i])

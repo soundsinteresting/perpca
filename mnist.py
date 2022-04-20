@@ -67,6 +67,31 @@ def femnist_images():
     images = [image[0] for image in femnist.datasets]
     return images
 
+def femnist_images_labels():
+    root = "../../../data"
+    hparams={"name":"femnist"}
+    femnist = FEMNIST(root,hparams)
+    trainlabel = []
+    testlabel = []
+    trainimage = []
+    testimage = []
+    testratio = 0.1
+    for dataset in femnist.datasets:
+        images = dataset[0]
+        labels = np.array(dataset[1])
+        dsize = len(labels)
+        allindices = np.arange(0, dsize)
+        #print(labels.shape)
+        np.random.shuffle(allindices)
+        testsize = int(dsize*testratio)
+        testindices = allindices[:testsize]
+        trainindices = allindices[testsize:]
+        trainlabel.append(labels[trainindices])
+        trainimage.append(images[trainindices])
+        testlabel.append(labels[testindices])
+        testimage.append(images[testindices])
+    return trainimage, testimage, trainlabel, testlabel
+
 if __name__ == "__main__":
     data = pd.read_csv('mnist/mnisttrain.csv')
     print(data.head(5))

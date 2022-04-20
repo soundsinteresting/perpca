@@ -218,8 +218,8 @@ def femnist_test():
         'global_epochs': 50,
         'local_epochs': 50,
         'n_power': 1,
-        'lr': 0.01,
-        'eta': 0.001,
+        'lr': 0.1,
+        'eta': 0.01,
         'rho': 100,
         'lambda': 0,
         'decay': 1 - 0.1,
@@ -227,8 +227,8 @@ def femnist_test():
 
     # num_client=20
     np.random.seed(2021)
-    from mnist import femnist_images
-    Y = femnist_images()
+    from mnist import femnist_images, femnist_images_labels
+    Y, Y_test, lbtrain, lbtest = femnist_images_labels()
     # print(Y)
     #for y in Y:
     #    print(y.shape)
@@ -245,17 +245,18 @@ def femnist_test():
     # U = initial_u(Y, d=args['d'], ngc=args['ngc'])
     # print(U)
     
-    Y_test = copy.deepcopy(Y) # generate_data(g_cs=gcs, l_cs=lcs, d=args['d'], num_dp=args['num_dp_per_client'])
+    #Y_test = copy.deepcopy(Y) # generate_data(g_cs=gcs, l_cs=lcs, d=args['d'], num_dp=args['num_dp_per_client'])
+    print('global model train loss:')
+    print(loss(Y, U_glb))
     print('global model test loss:')
     print(loss(Y_test, U_glb))
     
         #args['']
     U, V, lv = personalized_pca_dgd(Y, args=args)
-    #print('personalized model test loss:')
-        # print(Y_test.shape)
-        # print(U_p.shape)
-        # print(V[0].shape)
+    print('perpca test loss')
+    print(loss(Y_test,U,V))
 
+    '''
     for figidx in range(len(Y)):
             
         print('saving image {}'.format(figidx))
@@ -270,6 +271,7 @@ def femnist_test():
         plt.axis('off')
         #plt.show()
         plt.savefig('processedframes/'+'bg_'+str(figidx)+'.png', bbox_inches='tight')
+    '''
 
 def intro_example():
     args = {

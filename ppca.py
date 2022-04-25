@@ -212,8 +212,8 @@ def femnist_test():
         'method': 'power',
         'd': 100,
         'num_client': 4,
-        'nlc': 100,
-        'ngc': 40,
+        'nlc': 10,
+        'ngc': 50,
         'num_dp_per_client': 100,
         'global_epochs': 50,
         'local_epochs': 50,
@@ -224,7 +224,16 @@ def femnist_test():
         'lambda': 0,
         'decay': 1 - 0.1,
     }
+    from misc import Tee
+    import time
+    import sys
 
+    output_dir = 'outputs/femnist_'
+    jour = time.strftime("%Y-%m-%d-jour-%H-%M-%S", time.localtime())
+    output_dir += jour
+    os.makedirs(output_dir, exist_ok=True)
+    sys.stdout = Tee(os.path.join(output_dir, 'out.txt'))
+    #sys.stderr = misc.Tee(os.path.join(output_dir, 'err.txt'))
     # num_client=20
     np.random.seed(2021)
     from mnist import femnist_images, femnist_images_labels
@@ -237,7 +246,7 @@ def femnist_test():
     args['num_dp_per_client'] = len(Y[0])
     U_glb = initial_u(Y, d=args['d'], ngc=args['nlc'] + args['ngc'])
     print(U_glb.shape)
-    reconstruct0 = (U_glb @ U_glb.T @ (Y[0].T)).T
+    
     #plt.imshow(reconstruct0)
     #plt.axis('off')
     #plt.show()
@@ -250,29 +259,66 @@ def femnist_test():
     print(loss(Y, U_glb))
     print('global model test loss:')
     print(loss(Y_test, U_glb))
-    
-        #args['']
+
+
+    # logistic regression
+    Yr = [U_glb.T@Yi.T for Yi in Y]
+    Yrtest = [U_glb.T@Yi.T for Yi in Y_test]
+    trainacc, testacc = logistic_regression(Yr,lbtrain,Yrtest,lbtest)
+    print('global model train acc:')
+    print(trainacc)
+    print('global model test acc:')
+    print(testacc)
+
+
+        
     U, V, lv = personalized_pca_dgd(Y, args=args)
+    print('perpca train loss')
+    print(loss(Y,U,V))
     print('perpca test loss')
     print(loss(Y_test,U,V))
-
+    ucb = [np.concatenate((U[i],V[i]),axis=1) for i in range(len(V))]
+    Yr = [ucb[i].T@Y[i].T for i in range(len(V))]
+    Yrtest = [ucb[i].T@Y_test[i].T for i in range(len(V))]
+    trainacc, testacc = logistic_regression(Yr,lbtrain,Yrtest,lbtest)
+    print('perpcal train acc:')
+    print(trainacc)
+    print('perpca test acc:')
+    print(testacc)
     '''
-    for figidx in range(len(Y)):
-            
-        print('saving image {}'.format(figidx))
-        Ui, Vi = consensus(None,V[figidx], U[figidx], args)
-        reconstruct0 = (Vi@Vi.T@Y[figidx].T)#.T
-        plt.imshow(reconstruct0,cmap='gray')
-        plt.axis('off')
-        plt.savefig('processedframes/'+'cat_'+str(figidx)+'.png', bbox_inches='tight')
+    with open('femnist.txt', 'w') as f:        
+        print('global model train loss:', file=f)
+        print(loss(Y, U_glb), file=f)
+        print('global model test loss:', file=f)
+        print(loss(Y_test, U_glb), file=f)
 
-        reconstruct1 = (Ui@Ui.T @ Y[figidx].T)#.T
-        plt.imshow(reconstruct1,cmap='gray')
-        plt.axis('off')
-        #plt.show()
-        plt.savefig('processedframes/'+'bg_'+str(figidx)+'.png', bbox_inches='tight')
+        # logistic regression
+        Yr = [U_glb.T@Yi.T for Yi in Y]
+        Yrtest = [U_glb.T@Yi.T for Yi in Y_test]
+        trainacc, testacc = logistic_regression(Yr,lbtrain,Yrtest,lbtest)
+        print('global model train acc:', file=f)
+        print(trainacc, file=f)
+        print('global model test acc:', file=f)
+        print(testacc, file=f)
+
+
+        
+        U, V, lv = personalized_pca_dgd(Y, args=args)
+        print('perpca train loss', file=f)
+        print(loss(Y,U,V), file=f)
+        print('perpca test loss', file=f)
+        print(loss(Y_test,U,V), file=f)
+        ucb = [np.concatenate((U[i],V[i]),axis=1) for i in range(len(V))]
+        Yr = [ucb[i].T@Y[i].T for i in range(len(V))]
+        Yrtest = [ucb[i].T@Y_test[i].T for i in range(len(V))]
+        trainacc, testacc = logistic_regression(Yr,lbtrain,Yrtest,lbtest)
+        print('perpcal train acc:', file=f)
+        print(trainacc, file=f)
+        print('perpca test acc:', file=f)
+        print(testacc, file=f)
     '''
 
+    
 def intro_example():
     args = {
         'method':'power',
@@ -376,12 +422,13 @@ def toy_example1():
     }
 
     # num_client=20
+    num_runs = 10
     np.random.seed(2021)
     gcs = np.array([[0, 0, 1]])
     resdict = {}
     for alpha in np.linspace(1,90,100):
         resdict[alpha] = []
-        for number in range(5):
+        for number in range(num_runs):
             theta = alpha / 180 * np.pi
             lcs = np.array([[[np.cos(theta / 2), np.sin(theta / 2), 0]], [[np.cos(theta / 2), -np.sin(theta / 2), 0]]])
             gsigma = 1
@@ -416,15 +463,22 @@ def toy_example1():
     #f.close()
     tv = []
     lv = []
+    dev = []
     for alpha in resdict:
         ar = alpha / 180 * np.pi
         theta = 1-np.cos(ar/2)
         tv.append(theta)
-        lv.append(np.log(np.mean(resdict[alpha], axis=0))[-1]/np.log(10))
+        lv.append(np.mean(np.log(resdict[alpha]), axis=0)[-1]/np.log(10))
+        dev.append(np.std(np.log(resdict[alpha]), axis=0)[-1]/np.log(10)/np.sqrt(num_runs))
         #plt.plot(range(len(resdict[alpha][0])), np.log(np.mean(resdict[alpha], axis=0)),label=alpha)
-    plt.plot(tv, lv)
+    lv = np.array(lv)
+    dev = np.array(dev)
+    plt.plot(tv, lv, color='red')
+    plt.fill_between(tv, lv-1.732*dev, lv+1.732*dev, alpha=0.5)
+
     plt.xlabel(r'$\theta$',fontsize=20)
-    plt.ylabel('Final log-error',fontsize=20)
+    plt.ylabel('Log-error',fontsize=20)
+    plt.title('Log error after {} rounds'.format(args['global_epochs']),fontsize=20)
     #plt.legend()
     plt.savefig('logerrortotheta.png')
 
@@ -435,3 +489,4 @@ if __name__ == "__main__":
     #borrowpowertest()
     #img_test()
     femnist_test()
+    #toy_example1()

@@ -70,7 +70,7 @@ def initial_u(Y, d, ngc):
     evs, U = LA.eig(S)
     # U = np.random.randn(d,ngc)
     # U = schmit(U)
-    return U[:, 0:ngc]
+    return np.real(U[:, 0:ngc])
 
 
 def optimize_U_and_Vk(Yk, Vk, Uk, Lambdak, Z, args):
@@ -258,6 +258,9 @@ def personalized_pca_dgd(Y, args):
     V = [schmit(Vi - U_init @ U_init.T @ Vi) for Vi in V]
     U = [copy.deepcopy(U_init) for i in range(num_client)]
     lv = []
+    logpregress = False
+    if 'logprogress' in args.keys():
+        logpregress = True
     # spectral_cluster(V)
     for i in range(args['global_epochs']):
         # if i == 1:
@@ -285,10 +288,13 @@ def personalized_pca_dgd(Y, args):
         # for k in range(num_client):
         #    U[k] , V[k] = adjust_vk(U[k], V[k])
         ls = loss(Y, U, V)
-        print("[{}/{}]: loss {}".format(i, args['global_epochs'], ls))
+        if logpregress:
+            print("[{}/{}]: loss {}".format(i, args['global_epochs'], ls))
         lv.append(ls)
 
     # spectral_cluster(V)
+    for k in range(num_client):
+        U[k] , V[k] = adjust_vk(U[k], V[k])
     return U, V, lv
 
 
@@ -326,3 +332,26 @@ def personalized_pca_admm(Y, args):
     # spectral_cluster(V)
     # return U,V
     return [Z for i in range(len(U))], V
+
+def logistic_regression_single(Xtrain,ytrain,Xtest,ytest):
+    from sklearn.linear_model import LogisticRegression
+    #print('logistic regression')
+    #print(Xtrain.shape)
+    #print(ytrain.shape)
+    clf = LogisticRegression(random_state=0).fit(Xtrain.T, ytrain)
+    ytrainpred = clf.predict(Xtrain.T)
+    trainacc = np.sum(ytrainpred==ytrain)/len(ytrain)
+    ytestpred = clf.predict(Xtest.T)
+    testacc = np.sum(ytestpred==ytest)/len(ytest)
+    return trainacc, testacc
+
+def logistic_regression(Xtrains,ytrains,Xtests,ytests):
+    trainaccs = []
+    testaccs = []
+    for i in range(len(Xtrains)):
+        tracc,tsacc = logistic_regression_single(Xtrains[i],ytrains[i],Xtests[i],ytests[i])
+        trainaccs.append(tracc)
+        testaccs.append(tsacc)
+    trainaccs = np.array(trainaccs)
+    testaccs = np.array(testaccs)
+    return np.mean(trainaccs), np.mean(testaccs)

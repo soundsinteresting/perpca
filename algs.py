@@ -41,6 +41,13 @@ def cluster_plot(dis, clusters):
     plt.savefig('clietsrelation.png')
 
 
+def subspace_error(U,V):
+    r = len(U[0])
+    pu = U@U.T
+    pv = V@V.T
+    return r-np.trace(pu@pv)
+
+
 def generate_data(g_cs, l_cs, d, num_dp=100):
     n_client = len(l_cs)
     Y = []  # np.zeros((n_client, num_dp, d))
@@ -64,12 +71,14 @@ def single_PCA(Yi, ngc):
     return U[:, 0:ngc]
 
 
-def initial_u(Y, d, ngc):
-    Ycombined = np.concatenate(Y, axis=0)
-    S = Ycombined.T @ Ycombined
-    evs, U = LA.eig(S)
-    # U = np.random.randn(d,ngc)
-    # U = schmit(U)
+def initial_u(Y, d, ngc, random=0):
+    if random == 0:
+        Ycombined = np.concatenate(Y, axis=0)
+        S = Ycombined.T @ Ycombined
+        evs, U = LA.eig(S)
+    else:
+        U = np.random.randn(d,ngc)
+        U = schmit(U)
     return np.real(U[:, 0:ngc])
 
 
@@ -85,16 +94,18 @@ def optimize_U_and_Vk(Yk, Vk, Uk, Lambdak, Z, args):
         gradv = -2 * S @ Vk
         Uk -= eta * graduadd
         Vk -= eta * gradv
-        Uk, Vk = project_to_normal(Uk, Vk)
+        Uk, Vk = generalized_retract(Uk, Vk)
         # Uk -= eta * graduadd
     return Uk, Vk
 
 
-def consensus(Yk, Vk, Uk, args):
-    # Uk, Vk = project_to_normal(Uk, Vk)
+def correctv(Yk, Vk, Uk, args):
+    # Uk, Vk = generalized_retract(Uk, Vk)
     # return Uk, Vk
-    Z = schmit(np.concatenate((Uk, Vk), axis=1))
-    return Z[:, :args['ngc']], Z[:, args['ngc']:]
+    #Z = schmit(np.concatenate((Uk, Vk), axis=1))
+    #return Z[:, :args['ngc']], Z[:, args['ngc']:]
+    Vk = Vk-Uk@Uk.T@Vk
+    return Uk, generalized_retract_single(Vk,'polar')
 
 
 def optimize_U_and_Vk_stiefel(Yk, Vk, Uk, args):
@@ -104,8 +115,55 @@ def optimize_U_and_Vk_stiefel(Yk, Vk, Uk, args):
     # Optimize U and Vk
     # print("begin: sc: {}, ic: {}".format(args['ngc']-np.trace(Uk.T@Uk), np.trace(Uk.T@Vk)))
     # Uk, Vk = adjust_vk(Uk, Vk)
-    # Uk, Vk = project_to_normal(Uk, Vk)
-    Uk, Vk = consensus(Yk, Vk, Uk, args)
+    # Uk, Vk = generalized_retract(Uk, Vk)
+    Uk, Vk = correctv(Yk, Vk, Uk, args)
+    du = len(Uk[0])
+    dv = len(Vk[0])
+    for i in range(num_steps):
+        Wk = np.concatenate((Uk,Vk), axis=1)
+        '''
+        print('deviation')
+        att = np.linalg.norm(Wk.T@Wk-np.eye(du+dv))
+        a11 = np.linalg.norm(Uk.T@Uk-np.eye(du))
+        a12 = np.linalg.norm(Uk.T@Vk)
+        a22 = np.linalg.norm(Vk.T@Vk-np.eye(dv))
+        print(att,a11,a12,a22)
+        '''
+        gradw = -2*S@Wk
+        rgradw = gradw - Wk@Wk.T@gradw
+        #eta = 1/np.linalg.norm(rgradw)**2
+        Wk -= eta*gradw
+        #print('norms')
+        #print(np.linalg.norm(eta*gradw))
+        #print(np.linalg.norm(eta*rgradw))
+        #print('deviation')
+        #print(np.linalg.norm(eta*gradw))
+        #print(np.linalg.norm(generalized_retract_single(Wk-eta*gradw, 'polar')-generalized_retract_single(Wk-eta*rgradw, 'polar')))
+        #assert False
+        Wk = generalized_retract_single(Wk, 'polar')
+        Uk, Vk = Wk[:,:du], Wk[:,du:]
+        '''
+        gradu = -2 * S @ Uk
+        gradv = -2 * S @ Vk
+        gradu = (gradu - Uk@Uk.T@gradu - Vk@Vk.T@gradu)
+        gradv = (gradv - Uk@Uk.T@gradv - Vk@Vk.T@gradv)
+        Uk -= eta * (gradu)
+        Vk -= eta * (gradv)
+        Uk, Vk = generalized_retract(Uk, Vk, 'polar')
+        '''
+        # print("final: sc: {}, ic: {}".format(args['ngc'] - np.trace(Uk.T @ Uk), np.trace(Uk.T @ Vk)))
+
+    return Uk, Vk
+
+def optimize_U_and_Vk_stiefel_precise(Yk, Vk, Uk, args):
+    eta = args['eta']
+    num_steps = 1  # args['local_epochs']
+    S = Yk.T @ Yk
+    # Optimize U and Vk
+    # print("begin: sc: {}, ic: {}".format(args['ngc']-np.trace(Uk.T@Uk), np.trace(Uk.T@Vk)))
+    # Uk, Vk = adjust_vk(Uk, Vk)
+    # Uk, Vk = generalized_retract(Uk, Vk)
+    Uk, Vk = correctv(Yk, Vk, Uk, args)
     for i in range(num_steps):
         gradu = -2 * S @ Uk
         gradv = -2 * S @ Vk
@@ -113,7 +171,7 @@ def optimize_U_and_Vk_stiefel(Yk, Vk, Uk, args):
         # gradv = (gradv - Uk@Uk.T@gradv - Vk@Vk.T@gradv)
         Uk -= eta * (gradu)
         Vk -= eta * (gradv)
-        Uk, Vk = project_to_normal(Uk, Vk)
+        Uk, Vk = generalized_retract(Uk, Vk)
         # print("final: sc: {}, ic: {}".format(args['ngc'] - np.trace(Uk.T @ Uk), np.trace(Uk.T @ Vk)))
 
     return Uk, Vk
@@ -126,39 +184,51 @@ def optimize_U_and_Vk_soft(Yk, Vk, Uk, args):
     # Optimize U and Vk
     print("sc: {}, ic: {}".format(args['ngc'] - np.trace(Uk.T @ Uk), np.trace(Uk.T @ Vk)))
     # Uk, Vk = adjust_vk(Uk, Vk)
-    # Uk, Vk = project_to_normal(Uk, Vk)
+    # Uk, Vk = generalized_retract(Uk, Vk)
     for i in range(num_steps):
         gradu = (-2 * S + args['lambda'] * Vk @ Vk.T) @ Uk
         gradv = (-2 * S + args['lambda'] * Uk @ Uk.T) @ Vk
         Uk -= eta * (gradu)
         Vk -= eta * (gradv)
-        # Uk, Vk = project_to_normal(Uk, Vk)
+        # Uk, Vk = generalized_retract(Uk, Vk)
         Uk = schmit(Uk)
         Vk = schmit(Vk)
     return Uk, Vk
 
 
-def project_to_normal_single(Uk):
-    u, s, vh = np.linalg.svd(Uk)
-    D = np.zeros((u.shape[1], vh.shape[0]))
-    for j in range(min(u.shape[1], vh.shape[0])):
-        D[j, j] = 1
-    reconstruct = u @ D @ vh
-    return reconstruct
+def generalized_retract_single(Uk, method = 'polar'):
+    if method == 'polar':
+        u, s, vh = np.linalg.svd(Uk)
+        D = np.zeros((u.shape[1], vh.shape[0]))
+        for j in range(min(u.shape[1], vh.shape[0])):
+            D[j, j] = 1
+        reconstruct = u @ D @ vh
+        return reconstruct
+    elif method == 'qr':
+        reconstruct = np.linalg.qr(Uk)[0]
+        return reconstruct
+    else:
+        raise Exception('Unimplemented retraction: '+method)
 
 
-def project_to_normal(Uk, Vk):
+def generalized_retract(Uk, Vk, method='polar'):
     du = len(Uk[0])
     dv = len(Vk[0])
-    u, s, vh = np.linalg.svd(np.concatenate((Uk, Vk), axis=1))
-    s = s / s
-    # print(u.shape)
-    # print(vh.shape)
-    D = np.zeros((u.shape[1], vh.shape[0]))
-    for j in range(min(u.shape[1], vh.shape[0])):
-        D[j, j] = 1
-    reconstruct = u @ D @ vh
-    return reconstruct[:, :du], reconstruct[:, du:]
+    if method == 'polar':
+        u, s, vh = np.linalg.svd(np.concatenate((Uk, Vk), axis=1))
+        s = s / s
+        # print(u.shape)
+        # print(vh.shape)
+        D = np.zeros((u.shape[1], vh.shape[0]))
+        for j in range(min(u.shape[1], vh.shape[0])):
+            D[j, j] = 1
+        reconstruct = u @ D @ vh
+        return reconstruct[:, :du], reconstruct[:, du:]
+    elif method == 'qr':
+        reconstruct = np.linalg.qr(np.concatenate((Uk, Vk), axis=1))[0]
+        return reconstruct[:,:du], reconstruct[:,du:]
+    else:
+        raise Exception('Unimplemented retraction: '+method)
 
 
 def adjust_vk(Uk, Vk):
@@ -271,18 +341,19 @@ def personalized_pca_dgd(Y, args):
                 U[k], V[k] = optimize_U_and_Vk_stiefel(Y[k], V[k], U[k], args)
                 # U[k], V[k] = optimize_U_and_Vk_(Y[k], V[k], U[k], args)
             else:
-                U[k], V[k] = consensus(Y[k], V[k], U[k], args)
+                U[k], V[k] = correctv(Y[k], V[k], U[k], args)
             # U[k], V[k] = optimize_U_and_Vk_soft(Y[k], V[k], U[k], args)
         # lr decay
         if i % 10 == 9:
             args['eta'] *= 1  # 0.8
-        # 2nd step: avarage U
+        # 2nd step: avarage U and retract
         U_avg = sum(U[k] for k in range(num_client)) / num_client
+        U_avg = generalized_retract_single(U_avg,'qr')
 
         # 3rd step: broadcast U
         for k in range(num_client):
             U[k] = copy.deepcopy(U_avg)
-            # U[k], V[k] = project_to_normal(U_avg, V[k])
+            # U[k], V[k] = generalized_retract(U_avg, V[k])
 
         # 4-th step: adjust V
         # for k in range(num_client):
@@ -320,7 +391,7 @@ def personalized_pca_admm(Y, args):
 
         # 2nd step: avarage Z
         Z = sum(U[k] + Lambda[k] / rho for k in range(num_client)) / num_client
-        Z = project_to_normal_single(Z)
+        Z = generalized_retract_single(Z)
 
         dl = sum(np.linalg.norm(Z - U[k]) ** 2 for k in range(num_client)) / num_client
         # 3rd step: updata Lambda:
@@ -355,3 +426,41 @@ def logistic_regression(Xtrains,ytrains,Xtests,ytests):
     trainaccs = np.array(trainaccs)
     testaccs = np.array(testaccs)
     return np.mean(trainaccs), np.mean(testaccs)
+
+if __name__ == "__main__":
+    d = 10
+    np.random.seed(0)
+    A = np.random.randn(d,d)
+    Y = np.random.randn(d,d)
+    print(np.linalg.norm(A-Y))
+    U,s,Vt = np.linalg.svd(Y*100+A*0)
+    U = U[:,:2]
+    S = A.T@A
+    nabla = S@U
+    grad = nabla - U@(U.T@nabla+nabla.T@U)/2
+    maxeta = 1000
+    mineta = 0.001
+    ratio = maxeta/mineta
+    tts = 100
+    etas = []
+    errs = []
+    err2s = []
+    err3s = []
+    for i in range(tts):
+        eta = mineta * (ratio**(i/tts))
+        etas.append(eta)
+        Udrpolar = generalized_retract_single(U+eta*nabla)
+        Upolar = generalized_retract_single(U+eta*grad)
+        err = np.linalg.norm(Udrpolar-Upolar)
+        err2 = np.linalg.norm(U+eta*grad-Upolar)
+        err3 = np.linalg.norm(Ud)
+        errs.append(err)
+        err2s.append(err2)
+        err3s.append(err3)
+
+    plt.loglog(etas, errs,label='error')
+    plt.loglog(etas, err2s, label='error2')
+    plt.loglog(etas, err3s, label='error3')
+
+    plt.legend()
+    plt.savefig('stiefelretrac.png')

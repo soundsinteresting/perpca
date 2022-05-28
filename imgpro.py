@@ -14,7 +14,8 @@ def img_add(front, back, stx, sty):
 
 
 def gen_img_data():
-    return gen_cat_data_simple()
+    return load_car_data()
+    # return load_cat_data()
 
 
 def video2frame(video_src_path, frame_save_path, frame_width, frame_height, interval, start, end):
@@ -28,18 +29,21 @@ def video2frame(video_src_path, frame_save_path, frame_width, frame_height, inte
     :param interval:　保存帧间隔
     :return:　帧图片
     """
-    videos = os.listdir(video_src_path)
+    if os.path.isfile(video_src_path):
+        videos = [video_src_path]
+    else:
+        videos = os.listdir(video_src_path)
     for each_video in videos:
-        print("reding：", each_video)  # 我的是Python3.6
+        print("reading：", each_video)  # 我的是Python3.6
 
         each_video_name = each_video[:-4]
-        if not os.path.isdir(frame_save_path + each_video_name):
-            os.mkdir(frame_save_path + each_video_name)
-        each_video_save_full_path = os.path.join(frame_save_path, each_video_name) + "_"
+        #if not os.path.isdir(frame_save_path + each_video_name):
+        #    os.mkdir(frame_save_path + each_video_name)
+        #each_video_save_full_path = os.path.join(frame_save_path, each_video_name) + "_"
 
         each_video_full_path = os.path.join(video_src_path, each_video)
-
-        cap = cv2.VideoCapture(each_video_full_path)
+        each_video_save_full_path = os.path.join(frame_save_path)
+        cap = cv2.VideoCapture(each_video)
         frame_index = 0
         frame_count = 0
         if cap.isOpened():
@@ -50,12 +54,13 @@ def video2frame(video_src_path, frame_save_path, frame_width, frame_height, inte
 
         while (success):
             success, frame = cap.read()
-            print("---> 正在读取第%d帧:" % frame_index, success)  # 我的是Python3.6
+            #print("---> 正在读取第%d帧:" % frame_index, success)  # 我的是Python3.6
 
             if frame_index>start and frame_index % interval == 0 and success:  # 如路径下有多个视频文件时视频最后一帧报错因此条件语句中加and success
                 resize_frame = frame#cv2.resize(frame, (frame_width, frame_height), interpolation=cv2.INTER_AREA)
                 # cv2.imwrite(each_video_save_full_path + each_video_name + "_%d.jpg" % frame_index, resize_frame)
                 cv2.imwrite(each_video_save_full_path + "%d.jpg" % frame_count, resize_frame)
+                #save_image(frame,each_video_save_full_path,frame_count)
                 frame_count += 1
                 print(each_video_save_full_path + "%d.jpg" % frame_count)
                 print('saving')
@@ -84,15 +89,26 @@ def process_cat_data_xb():
     frames_save_path = r"frames"
     width = 720
     height = 480
-    start = 0
+    start = 1500
+    end = 10000
+    time_interval = 20
+    video2frame(videos_src_path, frames_save_path, width, height, time_interval, start, end)
+
+def process_car_data():
+    videos_src_path = r"video/111.mp4"
+    # video_formats = [".MP4", ".MOV"]          我的数据集都是.mp4所以不需要进行分类判断
+    frames_save_path = r"frames/car1/"
+    width = 720
+    height = 480
+    start = 250
     end = 10000
     time_interval = 20
     video2frame(videos_src_path, frames_save_path, width, height, time_interval, start, end)
 
 def save_image(image,addr,num):
-    cv2.saveimg(addr+str(num)+".jpg", image)
+    cv2.imwrite(addr+str(num)+".jpg", image)
 
-def gen_cat_data_simple():
+def load_cat_data():
     #names = ['c1.jpg','c2.jpg','c3.jpg','c4.jpg']#,'c5.jpg',]
     names = ["catxb_"+str(i)+".jpg" for i in range(76)]
     res = []
@@ -104,7 +120,24 @@ def gen_cat_data_simple():
         ct = cat.T
         res.append(ct)
 
-        print(cat.shape)
+        #print(cat.shape)
+    #print(len(res))
+    print('images loaded')
+    return np.stack(res)
+
+def load_car_data():
+    #names = ['c1.jpg','c2.jpg','c3.jpg','c4.jpg']#,'c5.jpg',]
+    names = [str(i)+".jpg" for i in range(62)]
+    res = []
+    for name in names:
+        img = Image.open(r'frames/car1/'+name)
+        img = np.array(img)
+        cat = np.mean(img, axis=2)
+        #cat = cat[0:400,200:700]
+        ct = cat.T
+        res.append(ct)
+
+        #print(cat.shape)
     #print(len(res))
     print('images loaded')
     return np.stack(res)
@@ -134,6 +167,14 @@ def imgsshow(compose):
         plt.axis('off')
         plt.show()
 
+def femnist_save_top_eigen(filename, U, num=1):
+    ns = min(num, len(U[0,:]))
+    for i in range(ns):
+        c = np.reshape(U[:,i], (28,28))
+        plt.imshow(c)
+        plt.savefig(filename+str(i)+'.png')
+
 if __name__ == "__main__":
     #imgsshow(gen_img_data())
-    process_cat_data_xb()
+    #process_cat_data_xb()
+    process_car_data()

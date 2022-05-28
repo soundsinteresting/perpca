@@ -19,8 +19,7 @@ def toytest():
         'global_epochs':30,
         'local_epochs':10,
         'n_power':1,
-        'lr':0.001,
-        'eta':0.1,
+        'eta':0.001,
         'rho':1,
         'decay':1-0.05,
     }
@@ -45,21 +44,12 @@ def toytest():
     Y_test = generate_data(g_cs=gcs, l_cs=lcs, d=args['d'], num_dp=args['num_dp_per_client'])
     print('global model test loss:')
     print(loss(Y_test, U_glb))
-    for method in ['power']:
-        print(method)
-        args['method']=method
-        U, V, lv = personalized_pca_dgd(Y, args=args)
-        #U, V = personalized_pca_admm(Y, args=args)
-        print('personalized model test loss:')
-        #print(Y_test.shape)
-        #print(U_p.shape)
-        #print(V[0].shape)
-        print(loss(Y_test, U, V))
-        #print(U[0])
-        #print(V[0][:,0])
-        #print(V[0][:,1])
-        #print(V[0][:,2])
-        #print(U[1])
+
+    U, V, lv = personalized_pca_dgd(Y, args=args)
+
+    print('personalized model test loss:')
+     
+    print(loss(Y_test, U, V))
 
     #v = pca_by_gd(Y[0],5,0.01,100)
     #print(v)
@@ -149,24 +139,34 @@ def img_test():
         'method': 'power',
         'd': 100,
         'num_client': 4,
-        'nlc': 100,
-        'ngc': 40,
+        'nlc': 150,
+        'ngc': 50,
         'num_dp_per_client': 100,
         'global_epochs': 100,
         'local_epochs': 1,
         'n_power': 1,
-        'lr': 0.01,
-        'eta': 0.01,
+        'eta': 1e-3,
         'rho': 100,
         'lambda': 0,
         'decay': 1 - 0.1,
+        'logprogress':1,
+        'precise':1,
     }
 
-    # num_client=20
+    from misc import Tee
+    import time
+    import sys
+
+    output_dir = 'outputs/video_'
+    jour = time.strftime("%Y-%m-%d-jour-%H-%M-%S", time.localtime())
+    output_dir += jour
+    os.makedirs(output_dir, exist_ok=True)
+    sys.stdout = Tee(os.path.join(output_dir, 'out.txt'))    
     np.random.seed(2021)
+    print(args)
     from imgpro import gen_img_data
     Y = gen_img_data()
-    # print(Y)
+    print('number of images %d'%len(Y))
     args['num_client'] = len(Y)
     args['d'] = len(Y[0,0])
     args['num_dp_per_client'] = len(Y[0])
@@ -194,7 +194,7 @@ def img_test():
     for figidx in range(len(Y)):
             
         print('saving image {}'.format(figidx))
-        Ui, Vi = consensus(None,V[figidx], U[figidx], args)
+        Ui, Vi = generalized_retract(U[figidx], V[figidx])
         reconstruct0 = (Vi@Vi.T@Y[figidx].T)#.T
         plt.imshow(reconstruct0,cmap='gray')
         plt.axis('off')
@@ -207,6 +207,66 @@ def img_test():
         plt.savefig('processedframes/'+'bg_'+str(figidx)+'.png', bbox_inches='tight')
 
 
+def debate_test():
+    args = {
+        'method': 'power',
+        'd': 100,
+        'num_client': 4,
+        'nlc': 2,
+        'ngc': 2,
+        'num_dp_per_client': 100,
+        'global_epochs': 100,
+        'local_epochs': 1,
+        'n_power': 1,
+        'eta': 1e-3,
+        'rho': 100,
+        'lambda': 0,
+        'decay': 1 - 0.1,
+        'logprogress':1,
+        'precise':1,
+    }
+    
+    from misc import Tee
+    import time
+    import sys
+
+    output_dir = 'outputs/debate_'
+    jour = time.strftime("%Y-%m-%d-jour-%H-%M-%S", time.localtime())
+    output_dir += jour
+    os.makedirs(output_dir, exist_ok=True)
+    sys.stdout = Tee(os.path.join(output_dir, 'out.txt'))  
+    
+    np.random.seed(2021)
+    print(args)
+    from vectorize import vectorize_words, top_words
+    Y, number2word, allyears = vectorize_words()
+    print('data loaded')
+    print('number of elections %d'%len(Y))
+    args['num_client'] = len(Y)
+    args['d'] = len(Y[0][0])
+    args['num_dp_per_client'] = len(Y[0])
+    U_glb = initial_u(Y, d=args['d'], ngc=args['nlc'] + args['ngc'])
+    print(U_glb.shape)
+    reconstruct0 = (U_glb @ U_glb.T @ (Y[0].T)).T
+ 
+    
+    Y_test = copy.deepcopy(Y) # generate_data(g_cs=gcs, l_cs=lcs, d=args['d'], num_dp=args['num_dp_per_client'])
+    print('global model test loss:')
+    print(loss(Y_test, U_glb))
+
+    U, V, lv = personalized_pca_dgd(Y, args=args)
+    #print('personalized model test loss:')
+        # print(Y_test.shape)
+        # print(U_p.shape)
+        # print(V[0].shape)
+
+    for yearidx in range(len(Y)):            
+        Ui, Vi = generalized_retract(U[yearidx], V[yearidx])
+        print('year %d :'% allyears[yearidx])
+        for j in range(args['nlc']):
+            words = top_words(Vi[:,j], number2word, top=10)
+            print(words)
+        
 def femnist_test():
     args = {
         'method': 'power',
@@ -218,11 +278,12 @@ def femnist_test():
         'global_epochs': 50,
         'local_epochs': 50,
         'n_power': 1,
-        'lr': 0.1,
-        'eta': 0.01,
+        'eta': 1e-8,#0.01,
         'rho': 100,
         'lambda': 0,
         'decay': 1 - 0.1,
+        'logprogress':1,
+
     }
     from misc import Tee
     import time
@@ -233,7 +294,6 @@ def femnist_test():
     output_dir += jour
     os.makedirs(output_dir, exist_ok=True)
     sys.stdout = Tee(os.path.join(output_dir, 'out.txt'))
-    #sys.stderr = misc.Tee(os.path.join(output_dir, 'err.txt'))
     # num_client=20
     np.random.seed(2021)
     from mnist import femnist_images, femnist_images_labels
@@ -246,6 +306,8 @@ def femnist_test():
     args['num_dp_per_client'] = len(Y[0])
     U_glb = initial_u(Y, d=args['d'], ngc=args['nlc'] + args['ngc'])
     print(U_glb.shape)
+    import  imgpro 
+    #imgpro.femnist_save_top_eigen(output_dir+'/global_',U_glb,10)
     
     #plt.imshow(reconstruct0)
     #plt.axis('off')
@@ -264,11 +326,13 @@ def femnist_test():
     # logistic regression
     Yr = [U_glb.T@Yi.T for Yi in Y]
     Yrtest = [U_glb.T@Yi.T for Yi in Y_test]
+    '''
     trainacc, testacc = logistic_regression(Yr,lbtrain,Yrtest,lbtest)
     print('global model train acc:')
     print(trainacc)
     print('global model test acc:')
     print(testacc)
+    '''
 
 
         
@@ -285,38 +349,7 @@ def femnist_test():
     print(trainacc)
     print('perpca test acc:')
     print(testacc)
-    '''
-    with open('femnist.txt', 'w') as f:        
-        print('global model train loss:', file=f)
-        print(loss(Y, U_glb), file=f)
-        print('global model test loss:', file=f)
-        print(loss(Y_test, U_glb), file=f)
 
-        # logistic regression
-        Yr = [U_glb.T@Yi.T for Yi in Y]
-        Yrtest = [U_glb.T@Yi.T for Yi in Y_test]
-        trainacc, testacc = logistic_regression(Yr,lbtrain,Yrtest,lbtest)
-        print('global model train acc:', file=f)
-        print(trainacc, file=f)
-        print('global model test acc:', file=f)
-        print(testacc, file=f)
-
-
-        
-        U, V, lv = personalized_pca_dgd(Y, args=args)
-        print('perpca train loss', file=f)
-        print(loss(Y,U,V), file=f)
-        print('perpca test loss', file=f)
-        print(loss(Y_test,U,V), file=f)
-        ucb = [np.concatenate((U[i],V[i]),axis=1) for i in range(len(V))]
-        Yr = [ucb[i].T@Y[i].T for i in range(len(V))]
-        Yrtest = [ucb[i].T@Y_test[i].T for i in range(len(V))]
-        trainacc, testacc = logistic_regression(Yr,lbtrain,Yrtest,lbtest)
-        print('perpcal train acc:', file=f)
-        print(trainacc, file=f)
-        print('perpca test acc:', file=f)
-        print(testacc, file=f)
-    '''
 
     
 def intro_example():
@@ -488,5 +521,7 @@ def toy_example1():
 if __name__ == "__main__":
     #borrowpowertest()
     #img_test()
-    femnist_test()
+    #femnist_test()
     #toy_example1()
+    #toytest()
+    debate_test()

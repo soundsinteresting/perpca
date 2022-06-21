@@ -111,7 +111,7 @@ def correctv(Yk, Vk, Uk, args):
 def optimize_U_and_Vk_stiefel(Yk, Vk, Uk, args):
     eta = args['eta']
     num_steps = 1  # args['local_epochs']
-    S = Yk.T @ Yk
+    S = Yk.T @ Yk/len(Yk)
     # Optimize U and Vk
     # print("begin: sc: {}, ic: {}".format(args['ngc']-np.trace(Uk.T@Uk), np.trace(Uk.T@Vk)))
     # Uk, Vk = adjust_vk(Uk, Vk)
@@ -129,16 +129,29 @@ def optimize_U_and_Vk_stiefel(Yk, Vk, Uk, args):
         a22 = np.linalg.norm(Vk.T@Vk-np.eye(dv))
         print(att,a11,a12,a22)
         '''
+
         gradw = -2*S@Wk
-        rgradw = gradw - Wk@Wk.T@gradw
-        #eta = 1/np.linalg.norm(rgradw)**2
+        rgradw = gradw - Wk@(gradw.T@Wk+Wk.T@gradw)/2
+
+        PRINT = False
+        if PRINT:
+            etar = 1/np.linalg.norm(rgradw)**2
+            print('norms')
+            print(np.linalg.norm(etar*gradw))
+            print(np.linalg.norm(etar*rgradw))
+            print('deviation')
+            print(np.linalg.norm(generalized_retract_single(Wk-etar*gradw, 'polar')-generalized_retract_single(Wk-etar*gradw, 'qr')))
+
+            print(np.linalg.norm(generalized_retract_single(Wk-etar*gradw, 'polar')-generalized_retract_single(Wk-etar*rgradw, 'polar')))
+            print(np.linalg.norm(Wk-etar*rgradw-generalized_retract_single(Wk-etar*rgradw, 'polar')))
+
+            print('===========')
+
+        #print(np.linalg.norm(rgradw))
+        #eta = 1e-7 #1/np.linalg.norm(rgradw)**2
         Wk -= eta*gradw
-        #print('norms')
-        #print(np.linalg.norm(eta*gradw))
-        #print(np.linalg.norm(eta*rgradw))
-        #print('deviation')
-        #print(np.linalg.norm(eta*gradw))
-        #print(np.linalg.norm(generalized_retract_single(Wk-eta*gradw, 'polar')-generalized_retract_single(Wk-eta*rgradw, 'polar')))
+        #Wk -= eta*gradw
+        
         #assert False
         Wk = generalized_retract_single(Wk, 'polar')
         Uk, Vk = Wk[:,:du], Wk[:,du:]
@@ -368,6 +381,33 @@ def personalized_pca_dgd(Y, args):
         U[k] , V[k] = adjust_vk(U[k], V[k])
     return U, V, lv
 
+def two_shot_pca(Y, args):
+    ngc, nlc = args['ngc'], args['nlc']
+    d = len(Y[0][0, :])
+    num_client = args['num_client']
+    rho = args['rho']
+
+    U_init = initial_u(Y, d, ngc)
+    #U_init = np.random.randn(d, ngc)
+    #U_init = schmit(U_init)
+    # print(U_init)
+    V = [np.random.multivariate_normal(np.zeros(d), np.eye(d), nlc).T for i in range(num_client)]
+    V = [schmit(Vi - U_init @ U_init.T @ Vi) for Vi in V]
+    U = [copy.deepcopy(U_init) for i in range(num_client)]
+    lv = []
+    logpregress = False
+    if 'logprogress' in args.keys():
+        logpregress = True
+
+    # calulate pc of each client
+    for k in range(num_client):
+        U[k], V[k] = optimize_U_and_Vk_stiefel(Y[k], V[k], U[k], args)
+        
+    # server calculates the aggregations of pcs
+
+    # calculates the local pcs by deflation
+
+    return U, V, lv
 
 def personalized_pca_admm(Y, args):
     ngc, nlc = args['ngc'], args['nlc']

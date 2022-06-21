@@ -139,20 +139,20 @@ def img_test():
         'method': 'power',
         'd': 100,
         'num_client': 4,
-        'nlc': 150,
+        'nlc': 200,
         'ngc': 50,
         'num_dp_per_client': 100,
         'global_epochs': 100,
         'local_epochs': 1,
         'n_power': 1,
-        'eta': 1e-3,
+        'eta': 1e0,
         'rho': 100,
         'lambda': 0,
         'decay': 1 - 0.1,
         'logprogress':1,
         'precise':1,
     }
-
+    '''
     from misc import Tee
     import time
     import sys
@@ -162,6 +162,7 @@ def img_test():
     output_dir += jour
     os.makedirs(output_dir, exist_ok=True)
     sys.stdout = Tee(os.path.join(output_dir, 'out.txt'))    
+    '''
     np.random.seed(2021)
     print(args)
     from imgpro import gen_img_data
@@ -206,6 +207,12 @@ def img_test():
         #plt.show()
         plt.savefig('processedframes/'+'bg_'+str(figidx)+'.png', bbox_inches='tight')
 
+        
+        plt.imshow(reconstruct0+reconstruct1,cmap='gray')
+        plt.axis('off')
+        #plt.show()
+        plt.savefig('processedframes/'+'full_'+str(figidx)+'.png', bbox_inches='tight')
+        
 
 def debate_test():
     args = {
@@ -215,7 +222,7 @@ def debate_test():
         'nlc': 2,
         'ngc': 2,
         'num_dp_per_client': 100,
-        'global_epochs': 100,
+        'global_epochs': 20,
         'local_epochs': 1,
         'n_power': 1,
         'eta': 1e-3,
@@ -263,9 +270,17 @@ def debate_test():
     for yearidx in range(len(Y)):            
         Ui, Vi = generalized_retract(U[yearidx], V[yearidx])
         print('year %d :'% allyears[yearidx])
+        words = []
         for j in range(args['nlc']):
-            words = top_words(Vi[:,j], number2word, top=10)
-            print(words)
+            words += top_words(Vi[:,j], number2word, top=10)
+        print(list(set(words)))
+    print('common words:')
+    
+    words = []
+    for j in range(args['ngc']):
+        words += top_words(Ui[:,j], number2word, top=10)
+    print(list(set(words)))
+
         
 def femnist_test():
     args = {
@@ -520,8 +535,8 @@ def toy_example1():
 
 if __name__ == "__main__":
     #borrowpowertest()
-    #img_test()
+    img_test()
     #femnist_test()
     #toy_example1()
     #toytest()
-    debate_test()
+    #debate_test()

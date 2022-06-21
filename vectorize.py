@@ -6,16 +6,17 @@ import json
 
 
 
-USUAL_WORDS = [ '','and','And','but','But','uh','or','if','because','so','So','also',
-               'of','for','to','in','on','out','at','with','about','as','into','by','from',
-               'the','The','that','thats','Thats','this','a','an','all','too','some','very',
+USUAL_WORDS = [ '','and','And','but','But','uh','like','or','if','If','because','so','So','also',
+               'of','for','to','in','In','on','out','at','with','about','as','into','by','from','than',
+               'the','The','that','thats','Thats','this','those','there','There',
+               'a','an','all','too','some','very',
                'is','are','be','have','has','had','not','been','Ive',
                'what','when','who','how','What','When','which',
                'was','were','do','does','did','will','would','should','can','Ill','going','dont',
-               'want','get','got','think','every','also','said',
+               'want','get','got','think','thank','Thank','every','also','said','say','know','knew',
                'Mr',
                'I','Im','my','me','he','He','his','her','she','She',
-               'we','We','us','our','you','You','your','They','they','them','Them','their','it','It','its','Its',
+               'we','We','weve','us','our','you','You','your','They','they','theyre','them','Them','their','it','It','its','Its',
                'D','000']
 
 def create_vector(word_count, vocab_size, wn):

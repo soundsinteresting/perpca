@@ -47,18 +47,32 @@ def subspace_error(U,V):
     pv = V@V.T
     return r-np.trace(pu@pv)
 
+def subspace_error_avg(U_list,V_list):
+    r = 1
+    if type(U_list) == list:
+        U = lambda i : U_list[i]
+        r = len(U_list)
+    else:
+        U = lambda i : U_list
+    if type(V_list) == list:
+        V = lambda i : V_list[i]
+        r = len(V_list)
+    else:
+        V = lambda i : V_list
+    err = [subspace_error(U(i),V(i)) for i in range(r)]
+    return np.mean(np.array(err))
 
-def generate_data(g_cs, l_cs, d, num_dp=100):
+def generate_data(g_cs, l_cs, d, local_ratio=0.5, num_dp=100):
     n_client = len(l_cs)
     Y = []  # np.zeros((n_client, num_dp, d))
     for i in range(n_client):
         g_dim = len(g_cs[:, 0])
         X_g = np.random.multivariate_normal(np.zeros(g_dim), np.eye(g_dim), num_dp)
 
-        Y.append(X_g @ g_cs)
+        Y.append(X_g @ g_cs * (1-local_ratio))
         l_dim = len(l_cs[i, :, 0])
         X_l = np.random.multivariate_normal(np.zeros(l_dim), np.eye(l_dim), num_dp)
-        Y[i] += X_l @ l_cs[i]
+        Y[i] += X_l @ l_cs[i] * local_ratio
         w = np.random.multivariate_normal(np.zeros(d), 0.5 * np.identity(15), num_dp)
         Y[i] += w  # np.transpose(w)
         Y[i] = Y[i]
@@ -67,7 +81,7 @@ def generate_data(g_cs, l_cs, d, num_dp=100):
 
 def single_PCA(Yi, ngc):
     S = Yi.T @ Yi
-    evs, U = LA.eig(S)
+    U, s, Vh = LA.svd(S)
     return U[:, 0:ngc]
 
 
@@ -385,29 +399,38 @@ def two_shot_pca(Y, args):
     ngc, nlc = args['ngc'], args['nlc']
     d = len(Y[0][0, :])
     num_client = args['num_client']
-    rho = args['rho']
-
-    U_init = initial_u(Y, d, ngc)
-    #U_init = np.random.randn(d, ngc)
-    #U_init = schmit(U_init)
-    # print(U_init)
-    V = [np.random.multivariate_normal(np.zeros(d), np.eye(d), nlc).T for i in range(num_client)]
-    V = [schmit(Vi - U_init @ U_init.T @ Vi) for Vi in V]
-    U = [copy.deepcopy(U_init) for i in range(num_client)]
+    
+    U1 = [np.zeros((d,ngc+nlc)) for i in range(num_client)]
+    V = []
     lv = []
+
     logpregress = False
     if 'logprogress' in args.keys():
         logpregress = True
 
     # calulate pc of each client
     for k in range(num_client):
-        U[k], V[k] = optimize_U_and_Vk_stiefel(Y[k], V[k], U[k], args)
+        U1[k] = single_PCA(Y[k], ngc+nlc)
         
     # server calculates the aggregations of pcs
+    U_aggregate = np.concatenate(U1, axis=1)
+    U2 = single_PCA(U_aggregate.T,ngc)
+    #print('u2 shape')
+    #print(U2.shape)
+    #print(U2)
 
     # calculates the local pcs by deflation
-
-    return U, V, lv
+    for k in range(num_client):
+        #print('shapes')
+        #print(Y[k].shape)
+        #print(U2.shape)
+        
+        V.append(single_PCA(Y[k]-Y[k]@U2@U2.T, nlc))
+        #print(V[k].shape)
+    #print('V[0] shape')
+    #print(V[0].shape)
+    lv = []
+    return [U2 for i in range(len(V))], V, lv
 
 def personalized_pca_admm(Y, args):
     ngc, nlc = args['ngc'], args['nlc']

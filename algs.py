@@ -73,7 +73,7 @@ def generate_data(g_cs, l_cs, d, local_ratio=0.5, num_dp=100):
         l_dim = len(l_cs[i, :, 0])
         X_l = np.random.multivariate_normal(np.zeros(l_dim), np.eye(l_dim), num_dp)
         Y[i] += X_l @ l_cs[i] * local_ratio
-        w = np.random.multivariate_normal(np.zeros(d), 0.5 * np.identity(15), num_dp)
+        w = np.random.multivariate_normal(np.zeros(d), 0.5 * np.identity(d), num_dp)
         Y[i] += w  # np.transpose(w)
         Y[i] = Y[i]
     return Y
@@ -431,6 +431,119 @@ def two_shot_pca(Y, args):
     #print(V[0].shape)
     lv = []
     return [U2 for i in range(len(V))], V, lv
+
+
+# Soft Threshold function
+def soft(z, lam):     
+    return np.sign(z)*np.maximum(np.abs(z)-lam,0) 
+
+def nuclear_prox(Y,mu):
+  U,S,V = np.linalg.svd(Y)
+  Ssoft = soft(S,1/mu)
+  return U@S@V.T
+
+def one_prox(Y,mu,lbd):
+  return soft(Y,lbd/mu)
+
+#Useful for Debugging ADMM Implementation of Robust PCA
+def rPCA_solver_admm(X, S=None, L=None, lam=None, rho=1, niter=10):
+    if S == None:
+        S = 0*X
+    if L == None:
+        L = X.copy()
+    if lam == None:
+        lam = 1/np.sqrt(np.amax(X.shape))
+
+    W = np.zeros(X.shape)
+    print("X shape:", X.shape)
+    
+    obj_l = lambda l: np.linalg.norm(l,'nuc')+(0.5*rho)*np.linalg.norm(X-l-S+W,'fro')**2
+    obj_s = lambda s: lam*np.linalg.norm(s,1)+(0.5*rho)*np.linalg.norm(X-L-s+W,'fro')**2
+    
+    for itr in range(niter):
+        U,Sig,V = np.linalg.svd(X-S+W, full_matrices=False)
+        L_new = np.dot(np.dot(U,np.diag(soft(Sig,1/rho))),V)
+        conv_L = np.linalg.norm(L_new - L,'fro')/np.linalg.norm(L) 
+        check_l = obj_l(L_new)-obj_l(L)
+        L = L_new 
+        
+        S_new = soft(X-L+W, lam/rho)
+        conv_S = np.linalg.norm(S_new - S,'fro')/np.linalg.norm(S)
+        check_s = obj_s(S_new)-obj_s(S)
+        s = rho*np.linalg.norm(S-S_new,'fro')
+        S = S_new 
+
+        r = np.linalg.norm(X-L-S,'fro')
+        
+        W = X-L-S+W
+        alp = 10
+        beta = 2
+        if r>alp*s:
+            rho = beta*rho 
+            W = W/beta
+        elif s>alp*r:
+            rho = rho/beta 
+            W = W*beta
+            
+        print("Iteration %s/%s, dl %.6f, ds %.4f, r %.4f, loss %.4f"%(itr, niter, conv_L, conv_S, r, obj_s(S)+obj_l(L)))
+        W = X-L-S+W
+    return L, S
+
+def rPCA_solver_admm_1(X, S=None, L=None, lam=None, rho=1, niter=10):
+    '''
+    ADMM Implementation of Robust PCA
+    Input: 
+        L:     Low Rank Component of the Data Matrix 
+        S:     The Sparse Component of the Data Matrix
+        X:     The Data Matrix
+        lam:   The regularization term 
+        rho:   Augmented Lagrangian Parameter 
+        niter: Number of Iterations 
+        
+    Intermediate: 
+        W:     The scaled Dual variables
+
+
+    Output: 
+        L:     The Low Rank Component of the Data Matrix 
+    '''  
+    if S == None:
+        S = 0*X
+    if L == None:
+        L = X.copy()
+    if lam == None:
+        lam = 1/np.sqrt(np.amax(X.shape))
+
+    W = 0    
+    Stm1 = S.copy()
+    Ltm1 = L.copy()
+    for itr in range(niter):
+        U,Sig,V = np.linalg.svd(X-S+W, full_matrices=False)
+        L = np.dot(np.dot(U,np.diag(soft(Sig,1/rho))),V)
+        S = soft(X-L+W, lam/rho)
+        print("ADMM:[%s/%s], ||delta S||: %.6f, ||delta L||: %.6f"
+            %(itr, niter, np.linalg.norm(S-Stm1),np.linalg.norm(L-Ltm1)))
+
+        W = X-L-S+W
+        Stm1 = S.copy()
+        Ltm1 = L.copy()
+    return L,S
+    
+def robust_pca_admm(Y, args):
+    shapei = Y[0].shape
+    #Y_ct = np.concatenate([Y[i].flatten() for i in range(len(Y))],)
+    Y_ct = np.stack([Y[i].flatten() for i in range(len(Y))],)
+    
+    L_ct, S_ct = rPCA_solver_admm(Y_ct,rho=args['rho'],niter=args['global_epochs'])
+    #S_ct = Y_ct - L_ct
+    l = len(Y[0][0])
+    #U = [L_ct[:,i*l:(i+1)*l].T for i in range(len(Y))]
+    #V = [S_ct[:,i*l:(i+1)*l].T for i in range(len(Y))]
+    U = [np.reshape(L_ct[i],shapei).T for i in range(len(Y))]
+    V = [np.reshape(S_ct[i],shapei).T for i in range(len(Y))]
+
+    return U, V
+
 
 def personalized_pca_admm(Y, args):
     ngc, nlc = args['ngc'], args['nlc']

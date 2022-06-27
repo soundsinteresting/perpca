@@ -78,6 +78,7 @@ class Experiment():
             'num_client':100,
             'nlc':9,
             'ngc':4,
+            'seed': 2021,
             'local_ratio':0.99,
             'num_dp_per_client':10000,
             'test_num_dp_per_client':100,
@@ -92,12 +93,13 @@ class Experiment():
             args[key] = inputargs[key]
         print(args)
         #num_client=20
-        np.random.seed(2021)
-        lcs = gen_local_components(ttd=args['d'], ini_id=2, ter_id=11, num_per_client=args['nlc'], num_client=args['num_client'])
-        gcs = np.array([[1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-                        [0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-                        [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
-                        [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0]])
+        #np.random.seed(2021)
+        np.random.seed(args['seed'])
+        lcs = gen_local_components(ttd=args['d'], ini_id=args['ngc'], ter_id=args['d']-1, num_per_client=args['nlc'], num_client=args['num_client'])
+        gcs = np.zeros((args['ngc'],args['d']))
+        for i in range(args['ngc']):
+            gcs[i,i] = 1
+        
         #print(lcs.shape)
         #gcs/=10
         #print(lcs[0])
@@ -166,24 +168,27 @@ class Experiment():
         #print(subspace_error_avg(U,gcs.T), subspace_error_avg(V,[lc.T for lc in lcs]))
         
 
-    def img_test(self,inputargs):
+    def img_test(inputargs):
         args = {
             'method': 'power',
             'd': 100,
             'num_client': 4,
-            'nlc': 200,
-            'ngc': 50,
+            'nlc': 100,
+            'ngc': 100,
             'num_dp_per_client': 100,
-            'global_epochs': 100,
+            'global_epochs': 25,
             'local_epochs': 1,
             'n_power': 1,
-            'eta': 1e0,
-            'rho': 100,
+            'eta': 1e-2,
+            'rho': 1e1,
             'lambda': 0,
             'decay': 1 - 0.1,
             'logprogress':1,
             'precise':1,
         }
+        for key in inputargs:
+            if key not in {'nlc','ngc'}:
+                args[key] = inputargs[key]
         '''
         from misc import Tee
         import time
@@ -195,7 +200,7 @@ class Experiment():
         os.makedirs(output_dir, exist_ok=True)
         sys.stdout = Tee(os.path.join(output_dir, 'out.txt'))    
         '''
-        np.random.seed(2021)
+        np.random.seed(args['seed'])
         print(args)
         from imgpro import gen_img_data
         Y = gen_img_data()
@@ -217,34 +222,51 @@ class Experiment():
         print('global model test loss:')
         print(loss(Y_test, U_glb))
         
-            #args['']
-        #U, V, lv = personalized_pca_dgd(Y, args=args)
-        U, V, lv = two_shot_pca(Y, args=args)
-        #print('personalized model test loss:')
+        if args['algorithm'] in {'rpca'}:
+            print('solving robust pca via admm')
+            U, V = robust_pca_admm(Y,args)
+            for figidx in range(len(Y)): 
+                print('saving image {}'.format(figidx))
+                reconstruct0 = U[figidx]
+                plt.imshow(reconstruct0,cmap='gray')
+                plt.axis('off')
+                plt.savefig('processedframes/'+'rpca_bg_'+str(figidx)+'.png', bbox_inches='tight')
+
+                reconstruct1 = V[figidx]
+                plt.imshow(reconstruct1,cmap='gray')
+                plt.axis('off')
+                #plt.show()
+                plt.savefig('processedframes/'+'rpca_cat_'+str(figidx)+'.png', bbox_inches='tight')
+
+          
+        else:
+            U, V, lv = personalized_pca_dgd(Y, args=args)
+            #U, V, lv = two_shot_pca(Y, args=args)
+            #print('personalized model test loss:')
             # print(Y_test.shape)
             # print(U_p.shape)
             # print(V[0].shape)
 
-        for figidx in range(len(Y)):
+            for figidx in range(len(Y)):
+                    
+                print('saving image {}'.format(figidx))
+                Ui, Vi = generalized_retract(U[figidx], V[figidx])
+                reconstruct0 = (Vi@Vi.T@Y[figidx].T)#.T
+                plt.imshow(reconstruct0,cmap='gray')
+                plt.axis('off')
+                plt.savefig('processedframes/'+'cat_'+str(figidx)+'.png', bbox_inches='tight')
+
+                reconstruct1 = (Ui@Ui.T @ Y[figidx].T)#.T
+                plt.imshow(reconstruct1,cmap='gray')
+                plt.axis('off')
+                #plt.show()
+                plt.savefig('processedframes/'+'bg_'+str(figidx)+'.png', bbox_inches='tight')
+
                 
-            print('saving image {}'.format(figidx))
-            Ui, Vi = generalized_retract(U[figidx], V[figidx])
-            reconstruct0 = (Vi@Vi.T@Y[figidx].T)#.T
-            plt.imshow(reconstruct0,cmap='gray')
-            plt.axis('off')
-            plt.savefig('processedframes/'+'cat_'+str(figidx)+'.png', bbox_inches='tight')
-
-            reconstruct1 = (Ui@Ui.T @ Y[figidx].T)#.T
-            plt.imshow(reconstruct1,cmap='gray')
-            plt.axis('off')
-            #plt.show()
-            plt.savefig('processedframes/'+'bg_'+str(figidx)+'.png', bbox_inches='tight')
-
-            
-            plt.imshow(reconstruct0+reconstruct1,cmap='gray')
-            plt.axis('off')
-            #plt.show()
-            plt.savefig('processedframes/'+'full_'+str(figidx)+'.png', bbox_inches='tight')
+                plt.imshow(reconstruct0+reconstruct1,cmap='gray')
+                plt.axis('off')
+                #plt.show()
+                plt.savefig('processedframes/'+'full_'+str(figidx)+'.png', bbox_inches='tight')
 
 
     def debate_test(self,inputargs):
@@ -397,7 +419,6 @@ class Experiment():
         print(trainacc)
         print('perpca test acc:')
         print(testacc)
-
 
         
     def intro_example(self,inputargs):

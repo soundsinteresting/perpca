@@ -14,7 +14,8 @@ def img_add(front, back, stx, sty):
 
 
 def gen_img_data():
-    return load_car_data()
+    return load_girl_data()
+    # return load_car_data()
     # return load_cat_data()
 
 
@@ -131,6 +132,24 @@ def load_car_data():
     res = []
     for name in names:
         img = Image.open(r'frames/car1/'+name)
+        img = np.array(img)
+        cat = np.mean(img, axis=2)
+        #cat = cat[0:400,200:700]
+        ct = cat.T
+        res.append(ct)
+
+        #print(cat.shape)
+    #print(len(res))
+    print('images loaded')
+    return np.stack(res)
+
+def load_girl_data():
+    #names = ["image00"+str(i).zfill(3)+".jpg" for i in range(202)]
+    names = ["I_MC_02-"+str(i).zfill(3)+".bmp" for i in range(157,240)]
+    res = []
+    for name in names:
+        #img = Image.open(r'frames/fading/'+name)
+        img = Image.open(r'frames/shaking/'+name)
         img = np.array(img)
         cat = np.mean(img, axis=2)
         #cat = cat[0:400,200:700]

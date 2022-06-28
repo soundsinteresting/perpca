@@ -145,7 +145,7 @@ def optimize_U_and_Vk_stiefel(Yk, Vk, Uk, args):
         '''
 
         gradw = -2*S@Wk
-        rgradw = gradw - Wk@(gradw.T@Wk+Wk.T@gradw)/2
+        #rgradw = gradw - Wk@(gradw.T@Wk+Wk.T@gradw)/2
 
         PRINT = False
         if PRINT:
@@ -386,8 +386,12 @@ def personalized_pca_dgd(Y, args):
         # for k in range(num_client):
         #    U[k] , V[k] = adjust_vk(U[k], V[k])
         ls = loss(Y, U, V)
+        
         if logpregress:
             print("[{}/{}]: loss {}".format(i, args['global_epochs'], ls))
+        if len(lv)>0 and ls > lv[-1]:
+            args['eta'] *= np.exp(-1)
+            print('decreasing stepsize to %.4f'%args['eta'])
         lv.append(ls)
 
     # spectral_cluster(V)

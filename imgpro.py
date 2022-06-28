@@ -106,6 +106,17 @@ def process_car_data():
     time_interval = 20
     video2frame(videos_src_path, frames_save_path, width, height, time_interval, start, end)
 
+def process_office_data():
+    videos_src_path = r"video/office2.avi"
+    # video_formats = [".MP4", ".MOV"]          我的数据集都是.mp4所以不需要进行分类判断
+    frames_save_path = r"frames/office/"
+    width = 720
+    height = 480
+    start = 0
+    end = 10000
+    time_interval = 1
+    video2frame(videos_src_path, frames_save_path, width, height, time_interval, start, end)
+
 def save_image(image,addr,num):
     cv2.imwrite(addr+str(num)+".jpg", image)
 
@@ -144,15 +155,24 @@ def load_car_data():
     return np.stack(res)
 
 def load_girl_data():
-    #names = ["image00"+str(i).zfill(3)+".jpg" for i in range(202)]
-    names = ["I_MC_02-"+str(i).zfill(3)+".bmp" for i in range(157,240)]
+    #names = ["image00"+str(i).zfill(3)+".jpg" for i in range(10,202)]
+    #names = ["I_MC_02-"+str(i).zfill(3)+".bmp" for i in range(157,240, 2)]
+    #names = [str(i).zfill(4)+".jpg" for i in range(208,245)]
+    #names = ["I_SI_01-"+str(i).zfill(3)+".bmp" for i in range(78, 294)]
+    #names = ["I_SM_01-"+str(i)+".bmp" for i in range(56, 295)]
+    names = ["in"+str(i).zfill(6)+".jpg" for i in range(0,406)]
     res = []
     for name in names:
         #img = Image.open(r'frames/fading/'+name)
-        img = Image.open(r'frames/shaking/'+name)
+        #img = Image.open(r'frames/shaking/'+name)
+        #img = Image.open(r'frames/simplewalk/'+name)
+        if not os.path.isfile(r'frames/car2/'+name):
+            continue
+        img = Image.open(r'frames/car2/'+name)
+    
         img = np.array(img)
         cat = np.mean(img, axis=2)
-        #cat = cat[0:400,200:700]
+        #cat = cat[:,:600]
         ct = cat.T
         res.append(ct)
 
@@ -193,7 +213,25 @@ def femnist_save_top_eigen(filename, U, num=1):
         plt.imshow(c)
         plt.savefig(filename+str(i)+'.png')
 
+def threshold(file):
+    img = Image.open(file)
+    
+    img = np.array(img)
+    img = np.mean(img, axis=2)
+    #print(np.max(img))
+    #print(np.min(img))
+    print(img.shape)
+    fmask = img>=130
+    #print(fmask[150]*255)
+    print(fmask*255)
+    print(fmask.mean())
+    plt.imshow(img[:,0:600],cmap='gray')
+    plt.savefig('trexample3.png')
+
 if __name__ == "__main__":
     #imgsshow(gen_img_data())
     #process_cat_data_xb()
-    process_car_data()
+    #process_car_data()
+    #process_office_data()
+    #threshold(r'processedframes/rpca_cat_6.png')
+    threshold(r'frames/office/0.jpg')

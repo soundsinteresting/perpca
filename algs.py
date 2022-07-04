@@ -144,9 +144,12 @@ def optimize_U_and_Vk_stiefel(Yk, Vk, Uk, args):
         print(att,a11,a12,a22)
         '''
 
-        gradw = -2*S@Wk
-        #rgradw = gradw - Wk@(gradw.T@Wk+Wk.T@gradw)/2
+        if 'choice1' in args.keys():
+            rgradw = gradw - Wk@(gradw.T@Wk+Wk.T@gradw)/2
+        else:
+            gradw = -2*S@Wk
 
+        '''
         PRINT = False
         if PRINT:
             etar = 1/np.linalg.norm(rgradw)**2
@@ -160,15 +163,22 @@ def optimize_U_and_Vk_stiefel(Yk, Vk, Uk, args):
             print(np.linalg.norm(Wk-etar*rgradw-generalized_retract_single(Wk-etar*rgradw, 'polar')))
 
             print('===========')
-
+        '''
         #print(np.linalg.norm(rgradw))
         #eta = 1e-7 #1/np.linalg.norm(rgradw)**2
-        Wk -= eta*gradw
-        #Wk -= eta*gradw
-        
+        if 'choice1' in args.keys():
+            Wk -= eta*rgradw
+            Uk, Vk = Wk[:,:du], Wk[:,du:]
+            Vk = generalized_retract_single(Vk, 'polar')
+        else:
+            Wk -= eta*gradw
+            Wk = generalized_retract_single(Wk, 'polar')
+            Uk, Vk = Wk[:,:du], Wk[:,du:]
+
         #assert False
-        Wk = generalized_retract_single(Wk, 'polar')
-        Uk, Vk = Wk[:,:du], Wk[:,du:]
+        #
+
+       
         '''
         gradu = -2 * S @ Uk
         gradv = -2 * S @ Vk
@@ -347,9 +357,12 @@ def personalized_pca_dgd(Y, args):
     num_client = args['num_client']
     rho = args['rho']
 
-    U_init = initial_u(Y, d, ngc)
-    #U_init = np.random.randn(d, ngc)
-    #U_init = schmit(U_init)
+    if 'randominit' in args.keys() and args['randominit'] == 1:
+        U_init = np.random.randn(d, ngc)
+        U_init = schmit(U_init)
+    else:
+        U_init = initial_u(Y, d, ngc)
+  
     # print(U_init)
     V = [np.random.multivariate_normal(np.zeros(d), np.eye(d), nlc).T for i in range(num_client)]
     V = [schmit(Vi - U_init @ U_init.T @ Vi) for Vi in V]
@@ -371,8 +384,8 @@ def personalized_pca_dgd(Y, args):
                 U[k], V[k] = correctv(Y[k], V[k], U[k], args)
             # U[k], V[k] = optimize_U_and_Vk_soft(Y[k], V[k], U[k], args)
         # lr decay
-        if i % 10 == 9:
-            args['eta'] *= 1  # 0.8
+        #if i % 10 == 9:
+        #    args['eta'] *= 1  # 0.8
         # 2nd step: avarage U and retract
         U_avg = sum(U[k] for k in range(num_client)) / num_client
         U_avg = generalized_retract_single(U_avg,'qr')
@@ -391,7 +404,10 @@ def personalized_pca_dgd(Y, args):
             print("[{}/{}]: loss {}".format(i, args['global_epochs'], ls))
         if len(lv)>0 and ls > lv[-1]:
             args['eta'] *= np.exp(-1)
-            print('decreasing stepsize to %.4f'%args['eta'])
+            print('decreasing stepsize to %.10f'%args['eta'])
+        elif 'choice1' in args.keys() and 'adapivestepsize' in args.keys() and i%5 == 4  :
+            # adaptive stepsize control
+            args['eta'] *= 1.5
         lv.append(ls)
 
     # spectral_cluster(V)

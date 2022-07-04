@@ -84,6 +84,7 @@ class Experiment():
             'test_num_dp_per_client':100,
             'global_epochs':100,
             'local_epochs':10,
+            #'logprogress':1,
             'n_power':1,
             'eta':0.1,
             'rho':1,
@@ -173,18 +174,21 @@ class Experiment():
             'method': 'power',
             'd': 100,
             'num_client': 4,
-            'nlc': 200,
-            'ngc': 20,
+            'nlc': 100,
+            'ngc': 10,
             'num_dp_per_client': 100,
-            'global_epochs': 100,
+            'global_epochs': 300,
             'local_epochs': 1,
             'n_power': 1,
             'eta': 1e-2,
+            #'choice1':1,
+            #'adaptivestepsize':1,
             'rho': 1e1,
             'lambda': 0,
             'decay': 1 - 0.1,
             'logprogress':1,
             'precise':1,
+            'inverse':1,
         }
         for key in inputargs:
             if key not in {'nlc','ngc'}:
@@ -203,7 +207,7 @@ class Experiment():
         np.random.seed(args['seed'])
         print(args)
         from imgpro import gen_img_data
-        Y = gen_img_data()
+        Y = gen_img_data(args)
         print('number of images %d'%len(Y))
         args['num_client'] = len(Y)
         args['d'] = len(Y[0,0])
@@ -227,12 +231,12 @@ class Experiment():
             U, V = robust_pca_admm(Y,args)
             for figidx in range(len(Y)): 
                 print('saving image {}'.format(figidx))
-                reconstruct0 = U[figidx]
+                reconstruct0 = U[figidx]#.T
                 plt.imshow(reconstruct0,cmap='gray')
                 plt.axis('off')
                 plt.savefig('processedframes/'+'rpca_bg_'+str(figidx)+'.png', bbox_inches='tight')
 
-                reconstruct1 = V[figidx]
+                reconstruct1 = V[figidx]#.T
                 plt.imshow(reconstruct1,cmap='gray')
                 plt.axis('off')
                 #plt.show()
@@ -252,11 +256,13 @@ class Experiment():
                 print('saving image {}'.format(figidx))
                 Ui, Vi = generalized_retract(U[figidx], V[figidx])
                 reconstruct0 = (Vi@Vi.T@Y[figidx].T)#.T
+               
                 plt.imshow(reconstruct0,cmap='gray')
                 plt.axis('off')
                 plt.savefig('processedframes/'+'cat_'+str(figidx)+'.png', bbox_inches='tight')
 
                 reconstruct1 = (Ui@Ui.T @ Y[figidx].T)#.T
+                
                 plt.imshow(reconstruct1,cmap='gray')
                 plt.axis('off')
                 #plt.show()

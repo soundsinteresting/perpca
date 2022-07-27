@@ -76,19 +76,23 @@ class Experiment():
         args = {
             'd':15,
             'num_client':100,
-            'nlc':9,
-            'ngc':4,
+            'nlc':1,
+            'ngc':1,
             'seed': 2021,
             'local_ratio':0.99,
             'num_dp_per_client':10000,
             'test_num_dp_per_client':100,
             'global_epochs':100,
             'local_epochs':10,
+            'choice1':1,
+            #'adaptivestepsize':1,
             #'logprogress':1,
             'n_power':1,
-            'eta':0.1,
+            'eta':1e-1,#0.01,
             'rho':1,
             'decay':1-0.05,
+            #'aggregationinit':1,
+            #'randominit':1,
         }
         for key in inputargs:
             args[key] = inputargs[key]
@@ -104,8 +108,8 @@ class Experiment():
         #print(lcs.shape)
         #gcs/=10
         #print(lcs[0])
-        Y1=generate_data(g_cs=gcs,l_cs=lcs[:len(lcs)//2],d=args['d'],local_ratio=args['local_ratio'], num_dp=args['num_dp_per_client']//10)
-        Y2=generate_data(g_cs=gcs,l_cs=lcs[len(lcs)//2:],d=args['d'],local_ratio=args['local_ratio'], num_dp=args['num_dp_per_client'])
+        Y1=generate_data(g_cs=gcs,l_cs=lcs[:int(len(lcs)*0.5)],d=args['d'],local_ratio=args['local_ratio'], num_dp=args['num_dp_per_client']//10)
+        Y2=generate_data(g_cs=gcs,l_cs=lcs[int(len(lcs)*0.5):],d=args['d'],local_ratio=args['local_ratio'], num_dp=args['num_dp_per_client'])
         #print(Y1.shape)
         #print(Y2.shape)
         #Y = np.concatenate((Y1,Y2), axis=0)
@@ -121,10 +125,17 @@ class Experiment():
         #print(U)
         Y_test = generate_data(g_cs=gcs, l_cs=lcs, d=args['d'], num_dp=args['test_num_dp_per_client'])
         print('statistical optimal test loss: %.4f'% loss(Y_test, gcs.T, [lc.T for lc in lcs]))
+        grouploss = lambda gs,ls : np.array([single_loss(Y_test[i], gs[i], ls[i], nov=0) for i in range(len(Y_test))])
+        singletestloss = grouploss([gcs.T for ii in range(args['num_client'])], [lc.T for lc in lcs])
+        print('statistical optimal individual test loss: %.4f, %.4f'%(np.mean(singletestloss[:len(singletestloss)//2]), np.mean(singletestloss[len(singletestloss)//2:])))
+
 
         print("---------------------------------------")
         print('global model test loss: %.4f'%loss(Y_test, U_glb))
-        
+        singletestloss = np.array([single_loss(Y_test[i], U_glb) for i in range(len(Y_test))])
+        print('global model indiv model test loss: %.4f, %.4f'%(np.mean(singletestloss[:len(singletestloss)//2]), np.mean(singletestloss[len(singletestloss)//2:])))
+
+
         print("---------------------------------------")
         print('indiv model training loss: %.4f, %.4f' %(np.mean(singletrainingloss[:len(singletrainingloss)//2]), np.mean(singletrainingloss[len(singletrainingloss)//2:])))
 
@@ -135,9 +146,15 @@ class Experiment():
 
         
         print("---------------------------------------")
+        #args['nlc'] = 0
         U, V, lv = personalized_pca_dgd(Y, args=args)
             #U, V = personalized_pca_admm(Y, args=args)
         print('personalized model test loss: %.4f'%loss(Y_test, U, V))
+        singletestloss = grouploss(U, V)
+        print('personalized indiv model test loss: %.4f, %.4f'%(np.mean(singletestloss[:len(singletestloss)//2]), np.mean(singletestloss[len(singletestloss)//2:])))
+
+
+
             #print(Y_test.shape)
             #print(U_p.shape)
             #print(V[0].shape)
@@ -164,6 +181,9 @@ class Experiment():
 
         print('two shot test loss: %.4f'% loss(Y_test, U, V))     
         #print(loss(Y_test, U, V))
+        singletestloss = grouploss(U, V)
+        print('two shot indiv model test loss: %.4f, %.4f'%(np.mean(singletestloss[:len(singletestloss)//2]), np.mean(singletestloss[len(singletestloss)//2:])))
+
 
         print('two shot subspace loss: %.4f, %.4f'%(subspace_error_avg(U,gcs.T), subspace_error_avg(V,[lc.T for lc in lcs])))
         #print(subspace_error_avg(U,gcs.T), subspace_error_avg(V,[lc.T for lc in lcs]))
@@ -177,7 +197,7 @@ class Experiment():
             'nlc': 100,
             'ngc': 10,
             'num_dp_per_client': 100,
-            'global_epochs': 300,
+            'global_epochs': 100,
             'local_epochs': 1,
             'n_power': 1,
             'eta': 1e-2,
@@ -275,7 +295,7 @@ class Experiment():
                 plt.savefig('processedframes/'+'full_'+str(figidx)+'.png', bbox_inches='tight')
 
 
-    def debate_test(self,inputargs):
+    def debate_test(inputargs):
         args = {
             'method': 'power',
             'd': 100,
@@ -286,14 +306,14 @@ class Experiment():
             'global_epochs': 20,
             'local_epochs': 1,
             'n_power': 1,
-            'eta': 1e-3,
+            'eta': 1e0,
             'rho': 100,
             'lambda': 0,
             'decay': 1 - 0.1,
             'logprogress':1,
-            'precise':1,
+            #'precise':1,
         }
-        
+        '''
         from misc import Tee
         import time
         import sys
@@ -303,13 +323,14 @@ class Experiment():
         output_dir += jour
         os.makedirs(output_dir, exist_ok=True)
         sys.stdout = Tee(os.path.join(output_dir, 'out.txt'))  
-        
+        '''
         np.random.seed(2021)
         print(args)
         from vectorize import vectorize_words, top_words
         Y, number2word, allyears = vectorize_words()
         print('data loaded')
         print('number of elections %d'%len(Y))
+        print('number of dialogues %d'%sum([len(Y[i]) for i in range(len(Y))]))
         args['num_client'] = len(Y)
         args['d'] = len(Y[0][0])
         args['num_dp_per_client'] = len(Y[0])
@@ -343,24 +364,26 @@ class Experiment():
         print(list(set(words)))
 
             
-    def femnist_test(self,inputargs):
+    def femnist_test(inputargs):
         args = {
             'method': 'power',
             'd': 100,
             'num_client': 4,
-            'nlc': 10,
+            'nlc': 5,
             'ngc': 50,
             'num_dp_per_client': 100,
             'global_epochs': 50,
             'local_epochs': 50,
             'n_power': 1,
-            'eta': 1e-8,#0.01,
+            'eta': 1,
             'rho': 100,
             'lambda': 0,
             'decay': 1 - 0.1,
             'logprogress':1,
+            'aggregationinit':1,
 
         }
+        '''
         from misc import Tee
         import time
         import sys
@@ -370,8 +393,9 @@ class Experiment():
         output_dir += jour
         os.makedirs(output_dir, exist_ok=True)
         sys.stdout = Tee(os.path.join(output_dir, 'out.txt'))
+        '''
         # num_client=20
-        np.random.seed(2021)
+        np.random.seed(4)
         from mnist import femnist_images, femnist_images_labels
         Y, Y_test, lbtrain, lbtest = femnist_images_labels()
         # print(Y)
@@ -408,10 +432,8 @@ class Experiment():
         print(trainacc)
         print('global model test acc:')
         print(testacc)
-        '''
+        
 
-
-            
         U, V, lv = personalized_pca_dgd(Y, args=args)
         print('perpca train loss')
         print(loss(Y,U,V))
@@ -426,8 +448,29 @@ class Experiment():
         print('perpca test acc:')
         print(testacc)
 
-        
-    def intro_example(self,inputargs):
+
+        U, V, lv = two_shot_pca(Y, args=args)
+        print('two shot train loss')
+        print(loss(Y,U,V))
+        print('two shot test loss')
+        print(loss(Y_test,U,V))
+        ucb = [np.concatenate((U[i],V[i]),axis=1) for i in range(len(V))]
+        Yr = [ucb[i].T@Y[i].T for i in range(len(V))]
+        Yrtest = [ucb[i].T@Y_test[i].T for i in range(len(V))]
+        trainacc, testacc = logistic_regression(Yr,lbtrain,Yrtest,lbtest)
+        print('two shot train acc:')
+        print(trainacc)
+        print('two shot test acc:')
+        print(testacc)
+        '''
+        lpcs = [single_PCA(Yi, args['nlc']+args['ngc']) for Yi in Y]
+        singletestloss = np.array([single_loss(Y_test[i], lpcs[i]) for i in range(len(Y_test))])
+        print('indiv PCA model test loss: %.4f'%(np.mean(singletestloss[:len(singletestloss)])))
+        singletestloss = np.array([single_loss(Y[i], lpcs[i]) for i in range(len(Y_test))])
+        print('indiv PCA model train loss: %.4f'%(np.mean(singletestloss[:len(singletestloss)])))
+
+      
+    def intro_example(inputargs):
         args = {
             'method':'power',
             'd':3,
@@ -511,22 +554,22 @@ class Experiment():
         plt.savefig('intro_example_ppca_{}.png'.format(not UNIFORM),bbox='tight')
 
 
-    def toy_example1(self,inputargs):
+    def toy_example1(inputargs):
         import json
         args = {
-            'method': 'power',
             'd': 3,
             'num_client': 2,
             'nlc': 1,
             'ngc': 1,
             'num_dp_per_client': 100,
             'global_epochs': 100,
-            'local_epochs': 10,
-            'n_power': 1,
-            'lr': 0.001,
-            'eta': 0.01,
+            'choice1':1,
+            #'adaptivestepsize':1,            
+            #'n_power': 1,
+            'eta': 1e-0,
             'rho': 1,
             'decay': 1 - 0.05,
+            'randominit':1,
         }
 
         # num_client=20
@@ -550,13 +593,14 @@ class Experiment():
 
                 Y2 = gsigma * np.cos(theta2) * gcs + lsigma * np.sin(theta2) * lcs[1]
                 Y = np.stack((Y1, Y2))
-                U_glb = initial_u(Y, d=args['d'], ngc=args['nlc'] + args['ngc'])
-                scale = 2.1
-                U_glb *= scale
+                #U_glb = initial_u(Y, d=args['d'], ngc=args['nlc'] + args['ngc'])
+                #scale = 2.1
+                #U_glb *= scale
 
                 U, V, lv = personalized_pca_dgd(Y, args=args)
                 resdict[alpha].append(lv)
             resdict[alpha] = np.stack(resdict[alpha])
+            #print(resdict[alpha].shape)
 
         # create json object from dictionary
         #json = json.dumps(resdict)
@@ -581,16 +625,83 @@ class Experiment():
             #plt.plot(range(len(resdict[alpha][0])), np.log(np.mean(resdict[alpha], axis=0)),label=alpha)
         lv = np.array(lv)
         dev = np.array(dev)
+
+        from plotall import CD
         plt.plot(tv, lv, color='red')
+
+        #plt.scatter(tv, lv, color = CD['ppca'])
+        #plt.plot(tv, lv, color=CD['ppca'],linestyle='--', label='Personalized PCA')
         plt.fill_between(tv, lv-1.732*dev, lv+1.732*dev, alpha=0.5)
 
         plt.xlabel(r'$\theta$',fontsize=20)
-        plt.ylabel('Log-error',fontsize=20)
-        plt.title('Log error after {} rounds'.format(args['global_epochs']),fontsize=20)
-        #plt.legend()
-        plt.savefig('logerrortotheta.png')
+        plt.ylabel('log reconstruction error',fontsize=20)
+        #plt.title('Log training reconstruction error after {} rounds'.format(args['global_epochs']),fontsize=20)
+        #plt.legend(fontsize=20)
+        plt.savefig('logerrortotheta.png', bbox_inches='tight')
 
-        #(lv)
+
+    def toy_example2(inputargs):
+        args = {
+            'd': 3,
+            'num_client': 2,
+            'nlc': 1,
+            'ngc': 1,
+            'num_dp_per_client': 100,
+            'global_epochs': 100,
+            'choice1':1,
+            #'adaptivestepsize':1,            
+            #'n_power': 1,
+            'eta': 1e-0,
+            'rho': 1,
+            'decay': 1 - 0.05,
+            'randominit':1,
+            'alpha':60,
+        }
+
+        # num_client=20
+        num_runs = 1
+        np.random.seed(2021)
+        gcs = np.array([[0, 0, 1]])
+        color1 = np.array([0.8, 0., 0.])
+        color2 = np.array([0., 0.8, 0.8])
+        dcolor = (color2-color1)*0.5
+        for alpha in range(10,100,10):
+            resdict = []
+            for number in range(num_runs):
+                theta = alpha / 180 * np.pi
+                lcs = np.array([[[np.cos(theta / 2), np.sin(theta / 2), 0]], [[np.cos(theta / 2), -np.sin(theta / 2), 0]]])
+                gsigma = 1
+                lsigma = 2
+                theta1 = np.random.rand(args['num_dp_per_client']) * 2 * np.pi
+                theta1 = theta1.reshape(len(theta1), 1)
+                # Y has dimension (n_client, num_dp, d)
+                Y1 = gsigma * np.cos(theta1) * gcs + lsigma * np.sin(theta1) * lcs[0]
+                
+                theta2 = np.random.rand(args['num_dp_per_client']) * 2 * np.pi
+                theta2 = theta1.reshape(len(theta2), 1)
+                Y2 = gsigma * np.cos(theta2) * gcs + lsigma * np.sin(theta2) * lcs[1]
+                
+                Y = np.stack((Y1, Y2))
+
+                U, V, lv = personalized_pca_dgd(Y, args=args)
+                resdict.append(lv)
+            resdict = np.stack(resdict)
+       
+            lv = np.mean(np.log(resdict), axis=0)/np.log(10)
+            rounds = np.arange(len(lv))
+
+            plt.plot(rounds, lv, color=color1+theta*dcolor, label='$\theta$=%.2f'%theta)
+        from plotall import CD
+
+        #plt.scatter(tv, lv, color = CD['ppca'])
+        #plt.plot(tv, lv, color=CD['ppca'],linestyle='--', label='Personalized PCA')
+        #plt.fill_between(tv, lv-1.732*dev, lv+1.732*dev, alpha=0.5)
+
+        plt.xlabel(r'Communication round',fontsize=20)
+        plt.ylabel('log reconstruction error',fontsize=20)
+        #plt.title('Log training reconstruction error after {} rounds'.format(args['global_epochs']),fontsize=20)
+        #plt.legend(fontsize=20)
+        plt.savefig('logerrortoround.png', bbox_inches='tight')
 
 
 if __name__ == "__main__":
@@ -605,6 +716,7 @@ if __name__ == "__main__":
     parser.add_argument('--nlc', type=int, default=10)
     parser.add_argument('--ngc', type=int, default=2)
     parser.add_argument('--num_dp_per_client', type=int, default=1000)
+    parser.add_argument('--folderprefix', type=str, default='')
 
     args = parser.parse_args()
     args = vars(args)
@@ -612,7 +724,7 @@ if __name__ == "__main__":
         from misc import Tee
         import time
         import sys
-        output_dir = 'outputs/{}_'.format(args['dataset'])
+        output_dir = args['folderprefix']+'outputs/{}_'.format(args['dataset'])
         jour = time.strftime("%Y-%m-%d-jour-%H-%M-%S", time.localtime())
         output_dir += jour
         os.makedirs(output_dir, exist_ok=True)

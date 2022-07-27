@@ -74,7 +74,7 @@ def generate_data(g_cs, l_cs, d, local_ratio=0.5, num_dp=100):
         X_l = np.random.multivariate_normal(np.zeros(l_dim), np.eye(l_dim), num_dp)
         Y[i] += X_l @ l_cs[i] * local_ratio
         w = np.random.multivariate_normal(np.zeros(d), 0.5 * np.identity(d), num_dp)
-        Y[i] += w  # np.transpose(w)
+        Y[i] += w*1e0  # np.transpose(w)
         Y[i] = Y[i]
     return Y
 
@@ -84,6 +84,10 @@ def single_PCA(Yi, ngc):
     U, s, Vh = LA.svd(S)
     return U[:, 0:ngc]
 
+def single_PCA_scaled(Yi, ngc):
+    S = Yi.T @ Yi
+    U, s, Vh = LA.svd(S)
+    return U[:, 0:ngc]@np.diag(np.sqrt(s[:ngc]))
 
 def initial_u(Y, d, ngc, random=0):
     if random == 0:
@@ -143,11 +147,11 @@ def optimize_U_and_Vk_stiefel(Yk, Vk, Uk, args):
         a22 = np.linalg.norm(Vk.T@Vk-np.eye(dv))
         print(att,a11,a12,a22)
         '''
-
+        gradw = -2*S@Wk
+        #swk = Wk.shape
+        #gradw += 1*np.random.randn(swk[0],swk[1])
         if 'choice1' in args.keys():
             rgradw = gradw - Wk@(gradw.T@Wk+Wk.T@gradw)/2
-        else:
-            gradw = -2*S@Wk
 
         '''
         PRINT = False
@@ -275,9 +279,9 @@ def adjust_vk(Uk, Vk):
     return q_adjusted[:, :du], q_adjusted[:, du:]
 
 
-def single_loss(Y, U, V=None):
+def single_loss(Y, U, V=None, nov=1):
     m = len(Y)
-    if V == None:
+    if nov:
         v = U
     else:
         v = np.concatenate((U, V), axis=1)
@@ -356,16 +360,24 @@ def personalized_pca_dgd(Y, args):
     d = len(Y[0][0, :])
     num_client = args['num_client']
     rho = args['rho']
-
+    
+    vinit = True
     if 'randominit' in args.keys() and args['randominit'] == 1:
         U_init = np.random.randn(d, ngc)
         U_init = schmit(U_init)
+    elif 'aggregationinit' in args.keys() and args['aggregationinit'] == 1:
+        initargs = copy.deepcopy(args)
+        U_init = aggregation_init(Y, initargs)
     else:
         U_init = initial_u(Y, d, ngc)
+    #print('u_init')
+    #print(U_init)
+    
   
     # print(U_init)
-    V = [np.random.multivariate_normal(np.zeros(d), np.eye(d), nlc).T for i in range(num_client)]
-    V = [schmit(Vi - U_init @ U_init.T @ Vi) for Vi in V]
+    if vinit:
+        V = [np.random.multivariate_normal(np.zeros(d), np.eye(d), nlc).T for i in range(num_client)]
+        V = [schmit(Vi - U_init @ U_init.T @ Vi) for Vi in V]
     U = [copy.deepcopy(U_init) for i in range(num_client)]
     lv = []
     logpregress = False
@@ -405,7 +417,7 @@ def personalized_pca_dgd(Y, args):
         if len(lv)>0 and ls > lv[-1]:
             args['eta'] *= np.exp(-1)
             print('decreasing stepsize to %.10f'%args['eta'])
-        elif 'choice1' in args.keys() and 'adapivestepsize' in args.keys() and i%5 == 4  :
+        elif 'choice1' in args.keys() and 'adaptivestepsize' in args.keys() and i%5 == 4  :
             # adaptive stepsize control
             args['eta'] *= 1.5
         lv.append(ls)
@@ -413,7 +425,27 @@ def personalized_pca_dgd(Y, args):
     # spectral_cluster(V)
     for k in range(num_client):
         U[k] , V[k] = adjust_vk(U[k], V[k])
+    #print('u learned')
+    #print(U[0])
     return U, V, lv
+
+def aggregation_init(Y,args):
+    ngc, nlc = args['ngc'], args['nlc']
+    d = len(Y[0][0, :])
+    num_client = args['num_client']
+    
+    U1 = [np.zeros((d,ngc+nlc)) for i in range(num_client)]
+    V = []
+    lv = []
+   
+    # calulate pc of each client
+    for k in range(num_client):
+        U1[k] = single_PCA_scaled(Y[k], ngc+nlc)
+
+    # server calculates the principal components of population covariance matrix
+    U_init = initial_u([U1[k].T for k in range(num_client)],d,ngc)
+    return U_init
+    
 
 def two_shot_pca(Y, args):
     ngc, nlc = args['ngc'], args['nlc']
@@ -423,10 +455,6 @@ def two_shot_pca(Y, args):
     U1 = [np.zeros((d,ngc+nlc)) for i in range(num_client)]
     V = []
     lv = []
-
-    logpregress = False
-    if 'logprogress' in args.keys():
-        logpregress = True
 
     # calulate pc of each client
     for k in range(num_client):
@@ -605,7 +633,7 @@ def logistic_regression_single(Xtrain,ytrain,Xtest,ytest):
     #print('logistic regression')
     #print(Xtrain.shape)
     #print(ytrain.shape)
-    clf = LogisticRegression(random_state=0).fit(Xtrain.T, ytrain)
+    clf = LogisticRegression(random_state=0, max_iter=1000).fit(Xtrain.T, ytrain)
     ytrainpred = clf.predict(Xtrain.T)
     trainacc = np.sum(ytrainpred==ytrain)/len(ytrain)
     ytestpred = clf.predict(Xtest.T)

@@ -159,16 +159,17 @@ def load_girl_data(args={}):
     #names = ["I_MC_02-"+str(i).zfill(3)+".bmp" for i in range(157,240, 2)]
     #names = [str(i).zfill(4)+".jpg" for i in range(208,245)]
     #names = ["I_SI_01-"+str(i).zfill(3)+".bmp" for i in range(78, 294)]
-    names = ["I_SM_01-"+str(i)+".bmp" for i in range(56, 295)]
+    ##names = ["I_SM_01-"+str(i)+".bmp" for i in range(56, 295)]
     #names = ["in"+str(i).zfill(6)+".jpg" for i in range(6,469)]
+    names = ["sample"+str(i)+'.png' for i in [1,2,3,8]]
     res = []
     for name in names:
         #img = Image.open(r'frames/fading/'+name)
         #img = Image.open(r'frames/shaking/'+name)
         #img = Image.open(r'frames/simplewalk/'+name)
-        if not os.path.isfile(r'frames/moving/'+name):
+        if not os.path.isfile(r'frames/sample/'+name):
             continue
-        img = Image.open(r'frames/moving/'+name)
+        img = Image.open(r'frames/sample/'+name)
     
         img = np.array(img)
         cat = np.mean(img, axis=2)

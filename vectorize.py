@@ -5,7 +5,6 @@ import os
 import json
 
 
-
 USUAL_WORDS = [ '','and','And','but','But','uh','like','or','if','If','because','so','So','also',
                'of','for','to','in','In','on','out','at','with','about','as','into','by','from','than',
                'the','The','that','thats','Thats','this','those','there','There',
@@ -34,7 +33,6 @@ def top_words(vector, number2word, top=5):
         words.append(number2word[position])
     return words
 
-#if __name__ == '__main__':
 def vectorize_words():
     source_dir = r"debate"  # r"./organized_results/train_output"
     filenames = [os.path.join(source_dir, name) for name in os.listdir(source_dir)]
@@ -70,14 +68,7 @@ def vectorize_words():
             if len(speech_dict)>0:
                 one_debate.append(speech_dict)
         all_dialogue.append(one_debate)
-    #print(years)
-    #print(word2number)
 
-    #print(all_dialogue)
-
-
-    #print(word2count.values())
-    #wc = np.sort(np.array(word2count.values()))
     wc = {k: v for k, v in sorted(word2count.items(), key=lambda item: item[1], reverse=True) if v > 5}
     print("total words %d, total dictionary %d" % (total_words, len(wc)))
     print("total debates %d" % len(all_dialogue))
@@ -86,11 +77,8 @@ def vectorize_words():
 
     vocab_size= len(word2number)
 
-    #print(wc)
     allyears = sorted(set(years))
-    #for
-    #print(years)
-    #print(allyears)
+    
     all_data = []
     for year in allyears:
         data = []
@@ -107,24 +95,6 @@ def vectorize_words():
         all_data.append(data)
     return all_data, number2word, allyears
 
-    '''
-    smat = np.concatenate(data)
-    print(len(smat))
-
-    print('concatenated, calculating SVD')
-    u, s, vh = np.linalg.svd(smat)
-    print('SVD calculated')
-    for j in range(5):
-        print('top %d principal component: '%j)
-        words = top_words(vh[j], number2word, top=40)
-        print(words)
-        print('======================')
-    '''
-
-if __name__ == "__main__":
-    all_data = vectorize_words()
-    for data in all_data:
-        print(data.shape)
 
 
 

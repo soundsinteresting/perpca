@@ -7,14 +7,14 @@ import os
 import cv2
 
 def gen_img_data(args={}):
-    return load_girl_data(args)
+    return load_car_data(args)
 
 
 def save_image(image,addr,num):
     cv2.imwrite(addr+str(num)+".jpg", image)
 
 
-def load_girl_data(args={}):
+def load_car_data(args={}):
     names = ["img_"+str(i)+'.jpg' for i in range(1,101)]
     res = []
     for name in names:        

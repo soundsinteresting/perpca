@@ -4,7 +4,6 @@ import scipy.stats as st
 import statsmodels.api as sm
 import os
 
-from sklearn.decomposition import FactorAnalysis
 from sklearn.decomposition import PCA
 from sklearn.cluster import SpectralClustering
 import matplotlib.pyplot as plt
@@ -100,22 +99,6 @@ def initial_u(Y, d, ngc, random=0):
     return np.real(U[:, 0:ngc])
 
 
-def optimize_U_and_Vk(Yk, Vk, Uk, Lambdak, Z, args):
-    eta = args['eta']
-    rho = args['rho']
-    num_steps = args['local_epochs']
-    S = Yk.T @ Yk
-    # Optimize U and Vk
-    for i in range(num_steps):
-        gradu = -2 * S @ Uk
-        graduadd = Lambdak + 2 * rho * (Uk - Z)
-        gradv = -2 * S @ Vk
-        Uk -= eta * graduadd
-        Vk -= eta * gradv
-        Uk, Vk = generalized_retract(Uk, Vk)
-        # Uk -= eta * graduadd
-    return Uk, Vk
-
 
 def correctv(Yk, Vk, Uk, args):
     # Uk, Vk = generalized_retract(Uk, Vk)
@@ -130,110 +113,32 @@ def optimize_U_and_Vk_stiefel(Yk, Vk, Uk, args):
     eta = args['eta']
     num_steps = 1  # args['local_epochs']
     S = Yk.T @ Yk/len(Yk)
-    # Optimize U and Vk
-    # print("begin: sc: {}, ic: {}".format(args['ngc']-np.trace(Uk.T@Uk), np.trace(Uk.T@Vk)))
-    # Uk, Vk = adjust_vk(Uk, Vk)
-    # Uk, Vk = generalized_retract(Uk, Vk)
+
+    # correct the local PCs
     Uk, Vk = correctv(Yk, Vk, Uk, args)
     du = len(Uk[0])
     dv = len(Vk[0])
+    # Optimize U and Vk
     for i in range(num_steps):
         Wk = np.concatenate((Uk,Vk), axis=1)
-        '''
-        print('deviation')
-        att = np.linalg.norm(Wk.T@Wk-np.eye(du+dv))
-        a11 = np.linalg.norm(Uk.T@Uk-np.eye(du))
-        a12 = np.linalg.norm(Uk.T@Vk)
-        a22 = np.linalg.norm(Vk.T@Vk-np.eye(dv))
-        print(att,a11,a12,a22)
-        '''
+        # gradient of W = [U,V]
         gradw = -2*S@Wk
-        #swk = Wk.shape
-        #gradw += 1*np.random.randn(swk[0],swk[1])
+   
         if 'choice1' in args.keys():
+            # calculate the Riemannian gradient
+            # then retract to Stiefel manifold
             rgradw = gradw - Wk@(gradw.T@Wk+Wk.T@gradw)/2
-
-        '''
-        PRINT = False
-        if PRINT:
-            etar = 1/np.linalg.norm(rgradw)**2
-            print('norms')
-            print(np.linalg.norm(etar*gradw))
-            print(np.linalg.norm(etar*rgradw))
-            print('deviation')
-            print(np.linalg.norm(generalized_retract_single(Wk-etar*gradw, 'polar')-generalized_retract_single(Wk-etar*gradw, 'qr')))
-
-            print(np.linalg.norm(generalized_retract_single(Wk-etar*gradw, 'polar')-generalized_retract_single(Wk-etar*rgradw, 'polar')))
-            print(np.linalg.norm(Wk-etar*rgradw-generalized_retract_single(Wk-etar*rgradw, 'polar')))
-
-            print('===========')
-        '''
-        #print(np.linalg.norm(rgradw))
-        #eta = 1e-7 #1/np.linalg.norm(rgradw)**2
-        if 'choice1' in args.keys():
             Wk -= eta*rgradw
             Uk, Vk = Wk[:,:du], Wk[:,du:]
             Vk = generalized_retract_single(Vk, 'polar')
         else:
+            # calculate the gradient descent 
+            # then priject to Stiefel manifold
+            # this option allows larger stepsizes.
             Wk -= eta*gradw
             Wk = generalized_retract_single(Wk, 'polar')
             Uk, Vk = Wk[:,:du], Wk[:,du:]
 
-        #assert False
-        #
-
-       
-        '''
-        gradu = -2 * S @ Uk
-        gradv = -2 * S @ Vk
-        gradu = (gradu - Uk@Uk.T@gradu - Vk@Vk.T@gradu)
-        gradv = (gradv - Uk@Uk.T@gradv - Vk@Vk.T@gradv)
-        Uk -= eta * (gradu)
-        Vk -= eta * (gradv)
-        Uk, Vk = generalized_retract(Uk, Vk, 'polar')
-        '''
-        # print("final: sc: {}, ic: {}".format(args['ngc'] - np.trace(Uk.T @ Uk), np.trace(Uk.T @ Vk)))
-
-    return Uk, Vk
-
-def optimize_U_and_Vk_stiefel_precise(Yk, Vk, Uk, args):
-    eta = args['eta']
-    num_steps = 1  # args['local_epochs']
-    S = Yk.T @ Yk
-    # Optimize U and Vk
-    # print("begin: sc: {}, ic: {}".format(args['ngc']-np.trace(Uk.T@Uk), np.trace(Uk.T@Vk)))
-    # Uk, Vk = adjust_vk(Uk, Vk)
-    # Uk, Vk = generalized_retract(Uk, Vk)
-    Uk, Vk = correctv(Yk, Vk, Uk, args)
-    for i in range(num_steps):
-        gradu = -2 * S @ Uk
-        gradv = -2 * S @ Vk
-        # gradu = (gradu - Uk@Uk.T@gradu - Vk@Vk.T@gradu)
-        # gradv = (gradv - Uk@Uk.T@gradv - Vk@Vk.T@gradv)
-        Uk -= eta * (gradu)
-        Vk -= eta * (gradv)
-        Uk, Vk = generalized_retract(Uk, Vk)
-        # print("final: sc: {}, ic: {}".format(args['ngc'] - np.trace(Uk.T @ Uk), np.trace(Uk.T @ Vk)))
-
-    return Uk, Vk
-
-
-def optimize_U_and_Vk_soft(Yk, Vk, Uk, args):
-    eta = args['eta']
-    num_steps = 1  # args['local_epochs']
-    S = Yk.T @ Yk
-    # Optimize U and Vk
-    print("sc: {}, ic: {}".format(args['ngc'] - np.trace(Uk.T @ Uk), np.trace(Uk.T @ Vk)))
-    # Uk, Vk = adjust_vk(Uk, Vk)
-    # Uk, Vk = generalized_retract(Uk, Vk)
-    for i in range(num_steps):
-        gradu = (-2 * S + args['lambda'] * Vk @ Vk.T) @ Uk
-        gradv = (-2 * S + args['lambda'] * Uk @ Uk.T) @ Vk
-        Uk -= eta * (gradu)
-        Vk -= eta * (gradv)
-        # Uk, Vk = generalized_retract(Uk, Vk)
-        Uk = schmit(Uk)
-        Vk = schmit(Vk)
     return Uk, Vk
 
 
@@ -251,25 +156,6 @@ def generalized_retract_single(Uk, method = 'polar'):
     else:
         raise Exception('Unimplemented retraction: '+method)
 
-
-def generalized_retract(Uk, Vk, method='polar'):
-    du = len(Uk[0])
-    dv = len(Vk[0])
-    if method == 'polar':
-        u, s, vh = np.linalg.svd(np.concatenate((Uk, Vk), axis=1))
-        s = s / s
-        # print(u.shape)
-        # print(vh.shape)
-        D = np.zeros((u.shape[1], vh.shape[0]))
-        for j in range(min(u.shape[1], vh.shape[0])):
-            D[j, j] = 1
-        reconstruct = u @ D @ vh
-        return reconstruct[:, :du], reconstruct[:, du:]
-    elif method == 'qr':
-        reconstruct = np.linalg.qr(np.concatenate((Uk, Vk), axis=1))[0]
-        return reconstruct[:,:du], reconstruct[:,du:]
-    else:
-        raise Exception('Unimplemented retraction: '+method)
 
 
 def adjust_vk(Uk, Vk):
@@ -317,20 +203,6 @@ def schmit(Q):
     return Q
 
 
-def simple_eig(A, n_round=100, nc=3, non_update=0, init_Q=None):
-    d = len(A)
-    if init_Q.any():
-        Q = init_Q
-    else:
-        Q = np.random.randn(d, nc)
-    schmit(Q)
-    for i in range(n_round):
-        Q[:, non_update:] = A @ Q[:, non_update:]
-        vas = [np.linalg.norm(Q[:, j]) for j in range(nc)]
-        schmit(Q)
-    return vas, Q
-
-
 def spectral_cluster(V):
     ncl = len(V)
     afm = np.zeros((ncl, ncl))
@@ -354,7 +226,7 @@ def spectral_cluster(V):
     print(clustering.labels_)
     cluster_plot(afm_copy, clustering.labels_)
 
-
+# Our algorithm for estimating parameters in personalized PCA
 def personalized_pca_dgd(Y, args):
     ngc, nlc = args['ngc'], args['nlc']
     d = len(Y[0][0, :])
@@ -370,11 +242,7 @@ def personalized_pca_dgd(Y, args):
         U_init = aggregation_init(Y, initargs)
     else:
         U_init = initial_u(Y, d, ngc)
-    #print('u_init')
-    #print(U_init)
-    
-  
-    # print(U_init)
+   
     if vinit:
         V = [np.random.multivariate_normal(np.zeros(d), np.eye(d), nlc).T for i in range(num_client)]
         V = [schmit(Vi - U_init @ U_init.T @ Vi) for Vi in V]
@@ -383,21 +251,16 @@ def personalized_pca_dgd(Y, args):
     logpregress = False
     if 'logprogress' in args.keys():
         logpregress = True
-    # spectral_cluster(V)
     for i in range(args['global_epochs']):
-        # if i == 1:
-        #    spectral_cluster(V)
+        
         # 1st step
         for k in range(num_client):
-            if i % 1 == 0:
-                U[k], V[k] = optimize_U_and_Vk_stiefel(Y[k], V[k], U[k], args)
-                # U[k], V[k] = optimize_U_and_Vk_(Y[k], V[k], U[k], args)
-            else:
-                U[k], V[k] = correctv(Y[k], V[k], U[k], args)
-            # U[k], V[k] = optimize_U_and_Vk_soft(Y[k], V[k], U[k], args)
+            U[k], V[k] = optimize_U_and_Vk_stiefel(Y[k], V[k], U[k], args)
+            
         # lr decay
         #if i % 10 == 9:
         #    args['eta'] *= 1  # 0.8
+
         # 2nd step: avarage U and retract
         U_avg = sum(U[k] for k in range(num_client)) / num_client
         U_avg = generalized_retract_single(U_avg,'qr')
@@ -405,11 +268,8 @@ def personalized_pca_dgd(Y, args):
         # 3rd step: broadcast U
         for k in range(num_client):
             U[k] = copy.deepcopy(U_avg)
-            # U[k], V[k] = generalized_retract(U_avg, V[k])
 
-        # 4-th step: adjust V
-        # for k in range(num_client):
-        #    U[k] , V[k] = adjust_vk(U[k], V[k])
+        # print some summary statistics
         ls = loss(Y, U, V)
         
         if logpregress:
@@ -422,13 +282,13 @@ def personalized_pca_dgd(Y, args):
             args['eta'] *= 1.5
         lv.append(ls)
 
-    # spectral_cluster(V)
     for k in range(num_client):
         U[k] , V[k] = adjust_vk(U[k], V[k])
     #print('u learned')
     #print(U[0])
     return U, V, lv
 
+# initialization methods
 def aggregation_init(Y,args):
     ngc, nlc = args['ngc'], args['nlc']
     d = len(Y[0][0, :])
@@ -446,7 +306,7 @@ def aggregation_init(Y,args):
     U_init = initial_u([U1[k].T for k in range(num_client)],d,ngc)
     return U_init
     
-
+# implementation of benchmark methods
 def two_shot_pca(Y, args):
     ngc, nlc = args['ngc'], args['nlc']
     d = len(Y[0][0, :])
@@ -463,24 +323,15 @@ def two_shot_pca(Y, args):
     # server calculates the aggregations of pcs
     U_aggregate = np.concatenate(U1, axis=1)
     U2 = single_PCA(U_aggregate.T,ngc)
-    #print('u2 shape')
-    #print(U2.shape)
-    #print(U2)
-
+  
     # calculates the local pcs by deflation
-    for k in range(num_client):
-        #print('shapes')
-        #print(Y[k].shape)
-        #print(U2.shape)
-        
+    for k in range(num_client):        
         V.append(single_PCA(Y[k]-Y[k]@U2@U2.T, nlc))
-        #print(V[k].shape)
-    #print('V[0] shape')
-    #print(V[0].shape)
+        
     lv = []
     return [U2 for i in range(len(V))], V, lv
 
-
+# implementation for a simple version of robust PCA
 # Soft Threshold function
 def soft(z, lam):     
     return np.sign(z)*np.maximum(np.abs(z)-lam,0) 
@@ -537,102 +388,21 @@ def rPCA_solver_admm(X, S=None, L=None, lam=None, rho=1, niter=10):
         W = X-L-S+W
     return L, S
 
-def rPCA_solver_admm_1(X, S=None, L=None, lam=None, rho=1, niter=10):
-    '''
-    ADMM Implementation of Robust PCA
-    Input: 
-        L:     Low Rank Component of the Data Matrix 
-        S:     The Sparse Component of the Data Matrix
-        X:     The Data Matrix
-        lam:   The regularization term 
-        rho:   Augmented Lagrangian Parameter 
-        niter: Number of Iterations 
-        
-    Intermediate: 
-        W:     The scaled Dual variables
-
-
-    Output: 
-        L:     The Low Rank Component of the Data Matrix 
-    '''  
-    if S == None:
-        S = 0*X
-    if L == None:
-        L = X.copy()
-    if lam == None:
-        lam = 1/np.sqrt(np.amax(X.shape))
-
-    W = 0    
-    Stm1 = S.copy()
-    Ltm1 = L.copy()
-    for itr in range(niter):
-        U,Sig,V = np.linalg.svd(X-S+W, full_matrices=False)
-        L = np.dot(np.dot(U,np.diag(soft(Sig,1/rho))),V)
-        S = soft(X-L+W, lam/rho)
-        print("ADMM:[%s/%s], ||delta S||: %.6f, ||delta L||: %.6f"
-            %(itr, niter, np.linalg.norm(S-Stm1),np.linalg.norm(L-Ltm1)))
-
-        W = X-L-S+W
-        Stm1 = S.copy()
-        Ltm1 = L.copy()
-    return L,S
-    
+ 
 def robust_pca_admm(Y, args):
     shapei = Y[0].shape
-    #Y_ct = np.concatenate([Y[i].flatten() for i in range(len(Y))],)
     Y_ct = np.stack([Y[i].flatten() for i in range(len(Y))],)
     
     L_ct, S_ct = rPCA_solver_admm(Y_ct,rho=args['rho'],niter=args['global_epochs'])
-    #S_ct = Y_ct - L_ct
     l = len(Y[0][0])
-    #U = [L_ct[:,i*l:(i+1)*l].T for i in range(len(Y))]
-    #V = [S_ct[:,i*l:(i+1)*l].T for i in range(len(Y))]
     U = [np.reshape(L_ct[i],shapei).T for i in range(len(Y))]
     V = [np.reshape(S_ct[i],shapei).T for i in range(len(Y))]
 
     return U, V
 
 
-def personalized_pca_admm(Y, args):
-    ngc, nlc = args['ngc'], args['nlc']
-    d = len(Y[0, 0, :])
-    num_client = args['num_client']
-    rho = args['rho']
-
-    U_init = initial_u(Y, d, ngc)
-    V = [np.random.multivariate_normal(np.zeros(d), np.eye(d), nlc).T for i in range(num_client)]
-    V = [schmit(Vi - U_init @ U_init.T @ Vi) for Vi in V]
-    U = [copy.deepcopy(U_init) for i in range(num_client)]
-    Lambda = [np.zeros((d, ngc)) for i in range(num_client)]
-    Z = copy.deepcopy(U_init)
-    # spectral_cluster(V)
-    for i in range(args['global_epochs']):
-        # if i == 1:
-        #    spectral_cluster(V)
-        # 1st step
-        for k in range(num_client):
-            U[k], V[k] = optimize_U_and_Vk(Y[k], V[k], U[k], Lambda[k], Z, args)
-
-        # 2nd step: avarage Z
-        Z = sum(U[k] + Lambda[k] / rho for k in range(num_client)) / num_client
-        Z = generalized_retract_single(Z)
-
-        dl = sum(np.linalg.norm(Z - U[k]) ** 2 for k in range(num_client)) / num_client
-        # 3rd step: updata Lambda:
-        for k in range(num_client):
-            Lambda[k] += 2 * rho * (U[k] - Z)
-            Lambda[k] *= 0
-        print("[{}/{}]: loss {}, dev loss {}".format(i, args['global_epochs'], loss(Y, Z, V), np.sqrt(dl)))
-
-    # spectral_cluster(V)
-    # return U,V
-    return [Z for i in range(len(U))], V
-
 def logistic_regression_single(Xtrain,ytrain,Xtest,ytest):
     from sklearn.linear_model import LogisticRegression
-    #print('logistic regression')
-    #print(Xtrain.shape)
-    #print(ytrain.shape)
     clf = LogisticRegression(random_state=0, max_iter=1000).fit(Xtrain.T, ytrain)
     ytrainpred = clf.predict(Xtrain.T)
     trainacc = np.sum(ytrainpred==ytrain)/len(ytrain)
@@ -650,41 +420,3 @@ def logistic_regression(Xtrains,ytrains,Xtests,ytests):
     trainaccs = np.array(trainaccs)
     testaccs = np.array(testaccs)
     return np.mean(trainaccs), np.mean(testaccs)
-
-if __name__ == "__main__":
-    d = 10
-    np.random.seed(0)
-    A = np.random.randn(d,d)
-    Y = np.random.randn(d,d)
-    print(np.linalg.norm(A-Y))
-    U,s,Vt = np.linalg.svd(Y*100+A*0)
-    U = U[:,:2]
-    S = A.T@A
-    nabla = S@U
-    grad = nabla - U@(U.T@nabla+nabla.T@U)/2
-    maxeta = 1000
-    mineta = 0.001
-    ratio = maxeta/mineta
-    tts = 100
-    etas = []
-    errs = []
-    err2s = []
-    err3s = []
-    for i in range(tts):
-        eta = mineta * (ratio**(i/tts))
-        etas.append(eta)
-        Udrpolar = generalized_retract_single(U+eta*nabla)
-        Upolar = generalized_retract_single(U+eta*grad)
-        err = np.linalg.norm(Udrpolar-Upolar)
-        err2 = np.linalg.norm(U+eta*grad-Upolar)
-        err3 = np.linalg.norm(Ud)
-        errs.append(err)
-        err2s.append(err2)
-        err3s.append(err3)
-
-    plt.loglog(etas, errs,label='error')
-    plt.loglog(etas, err2s, label='error2')
-    plt.loglog(etas, err3s, label='error3')
-
-    plt.legend()
-    plt.savefig('stiefelretrac.png')

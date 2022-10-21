@@ -25,23 +25,18 @@ class Experiment():
             'decay':1-0.05,
         }
 
-        #num_client=20
         np.random.seed(2022)
         lcs = gen_local_components(ttd=args['d'], ini_id=2, ter_id=11, num_per_client=args['nlc'], num_client=args['num_client'])
         gcs = np.array([[1/np.sqrt(2.), 1/np.sqrt(2.), 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
                         [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1/np.sqrt(3.), 1/np.sqrt(3.), 1/np.sqrt(3.)]])
-        #print(lcs.shape)
         gcs/=10
         print(lcs[0])
         Y=generate_data(g_cs=gcs,l_cs=lcs,d=args['d'],num_dp=args['num_dp_per_client'])
-        #print(Y)
 
         U_glb = initial_u(Y, d=args['d'], ngc=args['nlc']+args['ngc'])
         print('statistical optimal training loss')
         print(loss(Y, gcs.T, [lc.T for lc in lcs]))
-        #print(U_glb)
-        #U = initial_u(Y, d=args['d'], ngc=args['ngc'])
-        #print(U)
+        
         Y_test = generate_data(g_cs=gcs, l_cs=lcs, d=args['d'], num_dp=args['num_dp_per_client'])
         print('statistical optimal test loss')
         print(loss(Y_test, gcs.T, [lc.T for lc in lcs]))
@@ -62,15 +57,6 @@ class Experiment():
         print('two shot test loss:')     
         print(loss(Y_test, U, V))
 
-
-
-        #v = pca_by_gd(Y[0],5,0.01,100)
-        #print(v)
-
-        #evs, newU = LA.eig(Y[0].T @ Y[0])
-        #print(newU[:,0:5])
-        #projected = pca(np.transpose(Y[0]), 5)
-        #print(projected)
 
     def borrowpowertest(inputargs):
         args = {
@@ -105,24 +91,17 @@ class Experiment():
         for i in range(args['ngc']):
             gcs[i,i] = 1
         
-        #print(lcs.shape)
-        #gcs/=10
-        #print(lcs[0])
+        
         Y1=generate_data(g_cs=gcs,l_cs=lcs[:int(len(lcs)*0.5)],d=args['d'],local_ratio=args['local_ratio'], num_dp=args['num_dp_per_client']//10)
         Y2=generate_data(g_cs=gcs,l_cs=lcs[int(len(lcs)*0.5):],d=args['d'],local_ratio=args['local_ratio'], num_dp=args['num_dp_per_client'])
-        #print(Y1.shape)
-        #print(Y2.shape)
-        #Y = np.concatenate((Y1,Y2), axis=0)
+        
         Y = Y1+Y2
         lpcs = [single_PCA(Yi, args['nlc']+args['ngc']) for Yi in Y]
         singletrainingloss = np.array([single_loss(Y[i], lpcs[i]) for i in range(len(Y))])
         U_glb = initial_u(Y, d=args['d'], ngc=args['nlc']+args['ngc'])
         print("---------------------------------------")
         print('statistical optimal training loss %.4f'% loss(Y, gcs.T, [lc.T for lc in lcs]))
-        #print(loss(Y, gcs.T, [lc.T for lc in lcs]))
-        #print(U_glb)
-        #U = initial_u(Y, d=args['d'], ngc=args['ngc'])
-        #print(U)
+       
         Y_test = generate_data(g_cs=gcs, l_cs=lcs, d=args['d'], num_dp=args['test_num_dp_per_client'])
         print('statistical optimal test loss: %.4f'% loss(Y_test, gcs.T, [lc.T for lc in lcs]))
         grouploss = lambda gs,ls : np.array([single_loss(Y_test[i], gs[i], ls[i], nov=0) for i in range(len(Y_test))])
@@ -146,41 +125,18 @@ class Experiment():
 
         
         print("---------------------------------------")
-        #args['nlc'] = 0
         U, V, lv = personalized_pca_dgd(Y, args=args)
-            #U, V = personalized_pca_admm(Y, args=args)
         print('personalized model test loss: %.4f'%loss(Y_test, U, V))
         singletestloss = grouploss(U, V)
         print('personalized indiv model test loss: %.4f, %.4f'%(np.mean(singletestloss[:len(singletestloss)//2]), np.mean(singletestloss[len(singletestloss)//2:])))
 
-
-
-            #print(Y_test.shape)
-            #print(U_p.shape)
-            #print(V[0].shape)
-        # print(loss(Y_test, U, V))
-            #print(U[0])
-            #print(V[0][:,0])
-            #print(V[0][:,1])
-            #print(V[0][:,2])
-            #print(U[1])
         print('personalized subspace loss: %.4f, %.4f'%(subspace_error_avg(U,gcs.T), subspace_error_avg(V,[lc.T for lc in lcs])))
-        #print(subspace_error_avg(U,gcs.T), subspace_error_avg(V,[lc.T for lc in lcs]))
-        #v = pca_by_gd(Y[0],5,0.01,100)
-        #print(v)
 
-        #evs, newU = LA.eig(Y[0].T @ Y[0])
-        #print(newU[:,0:5])
-        #projected = pca(np.transpose(Y[0]), 5)
-        #print(projected)
         U, V, lv = two_shot_pca(Y, args=args)
         print("---------------------------------------")
 
-        #print('two shot train loss:')     
-        #print(loss(Y, U, V))
 
         print('two shot test loss: %.4f'% loss(Y_test, U, V))     
-        #print(loss(Y_test, U, V))
         singletestloss = grouploss(U, V)
         print('two shot indiv model test loss: %.4f, %.4f'%(np.mean(singletestloss[:len(singletestloss)//2]), np.mean(singletestloss[len(singletestloss)//2:])))
 
@@ -197,10 +153,10 @@ class Experiment():
             'nlc': 100,
             'ngc': 10,
             'num_dp_per_client': 100,
-            'global_epochs': 100,
+            'global_epochs': 120,
             'local_epochs': 1,
             'n_power': 1,
-            'eta': 1e-2,
+            'eta': 1e-1,
             #'choice1':1,
             #'adaptivestepsize':1,
             'rho': 1e1,
@@ -213,34 +169,20 @@ class Experiment():
         for key in inputargs:
             if key not in {'nlc','ngc'}:
                 args[key] = inputargs[key]
-        '''
-        from misc import Tee
-        import time
-        import sys
-
-        output_dir = 'outputs/video_'
-        jour = time.strftime("%Y-%m-%d-jour-%H-%M-%S", time.localtime())
-        output_dir += jour
-        os.makedirs(output_dir, exist_ok=True)
-        sys.stdout = Tee(os.path.join(output_dir, 'out.txt'))    
-        '''
+    
         np.random.seed(args['seed'])
         print(args)
         from imgpro import gen_img_data
         Y = gen_img_data(args)
+        Y = add_sparse_noise([Yi for Yi in Y],0.01,500)
         print('number of images %d'%len(Y))
         args['num_client'] = len(Y)
-        args['d'] = len(Y[0,0])
+        args['d'] = len(Y[0][0])
         args['num_dp_per_client'] = len(Y[0])
         U_glb = initial_u(Y, d=args['d'], ngc=args['nlc'] + args['ngc'])
         print(U_glb.shape)
         reconstruct0 = (U_glb @ U_glb.T @ (Y[0].T)).T
-        #plt.imshow(reconstruct0)
-        #plt.axis('off')
-        #plt.show()
-        # print(U_glb)
-        # U = initial_u(Y, d=args['d'], ngc=args['ngc'])
-        # print(U)
+       
         
         Y_test = copy.deepcopy(Y) # generate_data(g_cs=gcs, l_cs=lcs, d=args['d'], num_dp=args['num_dp_per_client'])
         print('global model test loss:')
@@ -265,11 +207,7 @@ class Experiment():
           
         else:
             U, V, lv = personalized_pca_dgd(Y, args=args)
-            #U, V, lv = two_shot_pca(Y, args=args)
-            #print('personalized model test loss:')
-            # print(Y_test.shape)
-            # print(U_p.shape)
-            # print(V[0].shape)
+           
 
             for figidx in range(len(Y)):
                     
@@ -291,7 +229,6 @@ class Experiment():
                 
                 plt.imshow(reconstruct0+reconstruct1,cmap='gray')
                 plt.axis('off')
-                #plt.show()
                 plt.savefig('processedframes/'+'full_'+str(figidx)+'.png', bbox_inches='tight')
 
 
@@ -313,17 +250,7 @@ class Experiment():
             'logprogress':1,
             #'precise':1,
         }
-        '''
-        from misc import Tee
-        import time
-        import sys
-
-        output_dir = 'outputs/debate_'
-        jour = time.strftime("%Y-%m-%d-jour-%H-%M-%S", time.localtime())
-        output_dir += jour
-        os.makedirs(output_dir, exist_ok=True)
-        sys.stdout = Tee(os.path.join(output_dir, 'out.txt'))  
-        '''
+       
         np.random.seed(2021)
         print(args)
         from vectorize import vectorize_words, top_words
@@ -344,10 +271,7 @@ class Experiment():
         print(loss(Y_test, U_glb))
 
         U, V, lv = personalized_pca_dgd(Y, args=args)
-        #print('personalized model test loss:')
-            # print(Y_test.shape)
-            # print(U_p.shape)
-            # print(V[0].shape)
+      
 
         for yearidx in range(len(Y)):            
             Ui, Vi = generalized_retract(U[yearidx], V[yearidx])
@@ -383,40 +307,16 @@ class Experiment():
             'aggregationinit':1,
 
         }
-        '''
-        from misc import Tee
-        import time
-        import sys
-
-        output_dir = 'outputs/femnist_'
-        jour = time.strftime("%Y-%m-%d-jour-%H-%M-%S", time.localtime())
-        output_dir += jour
-        os.makedirs(output_dir, exist_ok=True)
-        sys.stdout = Tee(os.path.join(output_dir, 'out.txt'))
-        '''
-        # num_client=20
+        
         np.random.seed(4)
         from mnist import femnist_images, femnist_images_labels
         Y, Y_test, lbtrain, lbtest = femnist_images_labels()
-        # print(Y)
-        #for y in Y:
-        #    print(y.shape)
         args['num_client'] = len(Y)
         args['d'] = len(Y[0][0])
         args['num_dp_per_client'] = len(Y[0])
         U_glb = initial_u(Y, d=args['d'], ngc=args['nlc'] + args['ngc'])
         print(U_glb.shape)
         import  imgpro 
-        #imgpro.femnist_save_top_eigen(output_dir+'/global_',U_glb,10)
-        
-        #plt.imshow(reconstruct0)
-        #plt.axis('off')
-        #plt.show()
-        # print(U_glb)
-        # U = initial_u(Y, d=args['d'], ngc=args['ngc'])
-        # print(U)
-        
-        #Y_test = copy.deepcopy(Y) # generate_data(g_cs=gcs, l_cs=lcs, d=args['d'], num_dp=args['num_dp_per_client'])
         print('global model train loss:')
         print(loss(Y, U_glb))
         print('global model test loss:')
@@ -426,43 +326,7 @@ class Experiment():
         # logistic regression
         Yr = [U_glb.T@Yi.T for Yi in Y]
         Yrtest = [U_glb.T@Yi.T for Yi in Y_test]
-        '''
-        trainacc, testacc = logistic_regression(Yr,lbtrain,Yrtest,lbtest)
-        print('global model train acc:')
-        print(trainacc)
-        print('global model test acc:')
-        print(testacc)
-        
-
-        U, V, lv = personalized_pca_dgd(Y, args=args)
-        print('perpca train loss')
-        print(loss(Y,U,V))
-        print('perpca test loss')
-        print(loss(Y_test,U,V))
-        ucb = [np.concatenate((U[i],V[i]),axis=1) for i in range(len(V))]
-        Yr = [ucb[i].T@Y[i].T for i in range(len(V))]
-        Yrtest = [ucb[i].T@Y_test[i].T for i in range(len(V))]
-        trainacc, testacc = logistic_regression(Yr,lbtrain,Yrtest,lbtest)
-        print('perpcal train acc:')
-        print(trainacc)
-        print('perpca test acc:')
-        print(testacc)
-
-
-        U, V, lv = two_shot_pca(Y, args=args)
-        print('two shot train loss')
-        print(loss(Y,U,V))
-        print('two shot test loss')
-        print(loss(Y_test,U,V))
-        ucb = [np.concatenate((U[i],V[i]),axis=1) for i in range(len(V))]
-        Yr = [ucb[i].T@Y[i].T for i in range(len(V))]
-        Yrtest = [ucb[i].T@Y_test[i].T for i in range(len(V))]
-        trainacc, testacc = logistic_regression(Yr,lbtrain,Yrtest,lbtest)
-        print('two shot train acc:')
-        print(trainacc)
-        print('two shot test acc:')
-        print(testacc)
-        '''
+    
         lpcs = [single_PCA(Yi, args['nlc']+args['ngc']) for Yi in Y]
         singletestloss = np.array([single_loss(Y_test[i], lpcs[i]) for i in range(len(Y_test))])
         print('indiv PCA model test loss: %.4f'%(np.mean(singletestloss[:len(singletestloss)])))
@@ -600,19 +464,7 @@ class Experiment():
                 U, V, lv = personalized_pca_dgd(Y, args=args)
                 resdict[alpha].append(lv)
             resdict[alpha] = np.stack(resdict[alpha])
-            #print(resdict[alpha].shape)
-
-        # create json object from dictionary
-        #json = json.dumps(resdict)
-
-        # open file for writing, "w"
-        #f = open("dict.json", "w")
-
-        # write json object to file
-        #f.write(json)
-
-        # close file
-        #f.close()
+           
         tv = []
         lv = []
         dev = []
@@ -622,7 +474,6 @@ class Experiment():
             tv.append(theta)
             lv.append(np.mean(np.log(resdict[alpha]), axis=0)[-1]/np.log(10))
             dev.append(np.std(np.log(resdict[alpha]), axis=0)[-1]/np.log(10)/np.sqrt(num_runs))
-            #plt.plot(range(len(resdict[alpha][0])), np.log(np.mean(resdict[alpha], axis=0)),label=alpha)
         lv = np.array(lv)
         dev = np.array(dev)
 
@@ -693,14 +544,10 @@ class Experiment():
             plt.plot(rounds, lv, color=color1+theta*dcolor, label='$\theta$=%.2f'%theta)
         from plotall import CD
 
-        #plt.scatter(tv, lv, color = CD['ppca'])
-        #plt.plot(tv, lv, color=CD['ppca'],linestyle='--', label='Personalized PCA')
-        #plt.fill_between(tv, lv-1.732*dev, lv+1.732*dev, alpha=0.5)
-
+      
         plt.xlabel(r'Communication round',fontsize=20)
         plt.ylabel('log reconstruction error',fontsize=20)
-        #plt.title('Log training reconstruction error after {} rounds'.format(args['global_epochs']),fontsize=20)
-        #plt.legend(fontsize=20)
+       
         plt.savefig('logerrortoround.png', bbox_inches='tight')
 
 
@@ -732,10 +579,3 @@ if __name__ == "__main__":
 
     experiment = getattr(Experiment, args['dataset'])
     experiment(args)
-
-    #borrowpowertest()
-    #img_test()
-    #femnist_test()
-    #toy_example1()
-    #toytest()
-    #debate_test()

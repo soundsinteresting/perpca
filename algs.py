@@ -157,6 +157,24 @@ def generalized_retract_single(Uk, method = 'polar'):
         raise Exception('Unimplemented retraction: '+method)
 
 
+def generalized_retract(Uk, Vk, method='polar'):
+    du = len(Uk[0])
+    dv = len(Vk[0])
+    if method == 'polar':
+        u, s, vh = np.linalg.svd(np.concatenate((Uk, Vk), axis=1))
+        s = s / s
+        # print(u.shape)
+        # print(vh.shape)
+        D = np.zeros((u.shape[1], vh.shape[0]))
+        for j in range(min(u.shape[1], vh.shape[0])):
+            D[j, j] = 1
+        reconstruct = u @ D @ vh
+        return reconstruct[:, :du], reconstruct[:, du:]
+    elif method == 'qr':
+        reconstruct = np.linalg.qr(np.concatenate((Uk, Vk), axis=1))[0]
+        return reconstruct[:,:du], reconstruct[:,du:]
+    else:
+        raise Exception('Unimplemented retraction: '+method)
 
 def adjust_vk(Uk, Vk):
     du = len(Uk[0])
